@@ -10,5 +10,6 @@ Create a base directory where logging and configuration information can be store
 
     BASE_DIR='path/to/local/storage'
     SECRET_KEY=''  # generate this with os.urandom(24)
+    SQLALCHEMY_DATABASE_URI = 'sqlalchemy-connection-string'  # see # see: http://docs.sqlalchemy.org/en/latest/core/engines.html
 
-Run the application with `python
+Run the application with `python dqt_api --config /path/to/config.py`.
