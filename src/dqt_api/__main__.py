@@ -1,17 +1,11 @@
-from flask import Flask
+from dqt_api import app, db
+import dqt_api.models
+import dqt_api.views
 import os
 import cherrypy
 import argparse
 from dqt_api import mylogging
 from paste.translogger import TransLogger
-from flask_sqlalchemy import SQLAlchemy
-
-app = Flask(__name__)
-
-db = SQLAlchemy(app)
-
-# avoid circular imports
-import dqt_api.views
 
 
 def mkdir_p(path):
@@ -20,8 +14,10 @@ def mkdir_p(path):
 
 
 def prepare_config(debug=False):
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
+    app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whoosh.idx'))
     app.config['ALEMBIC'] = {
         'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
         'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
