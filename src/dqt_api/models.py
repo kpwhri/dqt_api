@@ -1,5 +1,4 @@
-from dqt_api import db, app
-import flask.ext.whooshalchemyplus as whooshalchemy
+from dqt_api import db, whooshee
 
 
 class Variable(db.Model):
@@ -11,6 +10,7 @@ class Variable(db.Model):
     value = db.Column(db.Integer, db.ForeignKey('value.id'))
 
 
+@whooshee.register_model('name', 'description')
 class Item(db.Model):
     """Items can take a variety of values and belong to a larger category.
     Examples: 'sex', 'race', 'any dementia'
@@ -23,6 +23,7 @@ class Item(db.Model):
     category = db.Column(db.Integer, db.ForeignKey('category.id'))
 
 
+@whooshee.register_model('name', 'description')
 class Category(db.Model):
     """Container for a group of items and the target of searches.
     """
@@ -33,6 +34,7 @@ class Category(db.Model):
     description = db.Column(db.String(500))
 
 
+@whooshee.register_model('name', 'description')
 class Value(db.Model):
     """A possible value for an item.
     At the moment, this will even include values when there is a decimal range/natural ordering.
@@ -51,8 +53,3 @@ class ItemValue(db.Model):
     item = db.Column(db.Integer, db.ForeignKey('item.id'))
     value = db.Column(db.Integer, db.ForeignKey('value.id'))
     range_max = db.Column(db.Boolean)  # true: max of range; false: min of range; null: categorical relationship
-
-
-whooshalchemy.whoosh_index(app, Item)
-whooshalchemy.whoosh_index(app, Category)
-whooshalchemy.whoosh_index(app, Value)

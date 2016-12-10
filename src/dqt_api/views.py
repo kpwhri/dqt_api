@@ -15,10 +15,11 @@ def search():
         grouping: 'multiple+words'
     """
     target = request.args.get('query')
+    if len(target) < 3:
+        return 'Invalid search: must contain at least 3 characters.'
     terms = []
     # search category
-    # for c in models.Category.query.whoosh_search(target):
-    for c in models.Category.query.filter(models.Category.name.like('%{}%'.format(target))):
+    for c in models.Category.query.whooshee_search(target, order_by_relevance=-1):
         terms.append({
             'type': 'category',
             'id': c.id,
@@ -26,8 +27,7 @@ def search():
             'description': c.description
         })
     # search item
-    # for i in models.Item.query.whoosh_search(target):
-    for i in models.Item.query.filter(models.Item.name.like('%{}%'.format(target))):
+    for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
         terms.append({
             'type': 'category',
             'id': i.id,
@@ -36,8 +36,7 @@ def search():
         })
 
     # search value
-    # for v in models.Value.query.whoosh_search(target):
-    for v in models.Value.query.filter(models.Value.name.like('%{}%'.format(target))):
+    for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
         terms.append({
             'type': 'category',
             'id': v.id,
