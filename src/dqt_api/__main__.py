@@ -14,13 +14,22 @@ db = SQLAlchemy(app)
 import dqt_api.views
 
 
-def prepare_config():
-    app.config['LOG_DIR'] = os.path.join(app.config['BASE_DIR'], 'logs')
-    app.config['SQLALCHEMY_MIGRATE_REPO'] = os.path.join(app.config['BASE_DIR'], 'migrations')
+def mkdir_p(path):
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def prepare_config(debug=False):
+    app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
+    app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
+    app.config['ALEMBIC'] = {
+        'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
+        'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
+    }
+    app.debug = debug
 
     app.secret_key = app.config['SECRET_KEY']
 
-    os.makedirs(app.config['LOG_DIR'], exist_ok=True)
     handler = mylogging.StaticTimedRotatingFileHandler(
         os.path.join(app.config['LOG_DIR'], 'log_file'), "midnight", 1)
     handler.suffix = '%Y-%m-%d'
@@ -57,8 +66,7 @@ def main():
     args = parser.parse_args()
 
     app.config.from_pyfile(args.config)
-    app.debug = args.debug
-    prepare_config()
+    prepare_config(args.debug)
     run_server(port=args.port)
 
 

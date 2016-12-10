@@ -5,7 +5,7 @@ class Variable(db.Model):
     """Any variable which can be used to filter the dataset.
     """
     id = db.Column(db.Integer, primary_key=True)
-    case = db.Column(db.Integer, db.ForeignKey('case.id'))
+    case = db.Column(db.Integer)  # represents subject
     item = db.Column(db.Integer, db.ForeignKey('item.id'))
     value = db.Column(db.Integer, db.ForeignKey('value.id'))
 
