@@ -1,5 +1,5 @@
 from flask import Flask
-from flask.ext.whooshee import Whooshee
+from flask_whooshee import Whooshee
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)

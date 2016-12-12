@@ -2,9 +2,9 @@ import argparse
 import random
 
 import sys
-from flask.ext.alembic import Alembic
-from flask.ext.script import Manager
-from flask.ext.migrate import Migrate
+from flask_alembic import Alembic
+from flask_script import Manager
+from flask_migrate import Migrate
 from flask_alembic.cli.script import manager as alembic_manager
 from dqt_api import db, app
 from dqt_api import models
@@ -18,6 +18,8 @@ def main():
                              'BASE_DIR, SECRET_KEY.')
     parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete'), default='manage',
                         help='Operation to perform.')
+    parser.add_argument('--count', default=None, type=int,
+                        help='When loading, specifying number of samples to be generated.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
     args, unk = parser.parse_known_args()
@@ -31,7 +33,7 @@ def main():
     elif args.method == 'create':
         create()
     elif args.method == 'load':
-        load()
+        load(args.count)
     elif args.method == 'delete':
         delete()
 
@@ -55,7 +57,7 @@ def create():
     alembic.init_app(app)
 
 
-def load():
+def load(count):
     """Load database with sample data."""
 
     def load_all(*lst, commit=False):
@@ -122,7 +124,7 @@ def load():
 
     load_all(*cis + mf + race + ages + yn + casi + status, commit=True)
     # load subjects with random data
-    for i in range(30):
+    for i in range(count):
         for item, vals in [(i11, ages), (i12, mf), (i13, race), (i14, yn),
                            (i21, casi), (i22, casi), (i31, yn), (i32, yn),
                            (i41, status)]:
