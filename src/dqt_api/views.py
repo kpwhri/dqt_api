@@ -1,4 +1,5 @@
 from flask import request, jsonify
+import pandas as pd
 
 from dqt_api import db, app, models
 
@@ -45,3 +46,54 @@ def search():
         })
 
     return jsonify({'search': terms})
+
+
+@app.route('/api/filter', methods=['GET'])
+def api_filter():
+    """Filter population based on parameters.
+
+    TODO: parameterize items to return
+    """
+    # get set of cases
+    cases = None
+    for key, val in request.args.lists():
+        cases_ = set(
+            db.session.query(models.Variable.case).filter(
+                models.Variable.item==key,
+                models.Variable.value.in_(val)
+            ).all()
+        )
+        if cases:
+            cases &= cases_
+        else:
+            cases = cases_
+    cases = [x[0] for x in list(cases)]
+
+    # get data for graphs
+    res = {}
+
+    items = {
+        models.Item.query.filter_by(name='Sex').first().id: 'sex',
+        models.Item.query.filter_by(name='Current Status').first().id: 'current_status',
+        models.Item.query.filter_by(name='Age').first().id: 'age'
+    }
+
+    data = []
+    curr = {}
+    curr_inst = None
+    for inst in db.session.query(models.Variable).filter(
+        models.Variable.case.in_(cases),
+        models.Variable.item.in_(items)
+    ).order_by(models.Variable.case, models.Variable.item):
+        if inst.case != curr_inst:
+            if curr:
+                data.append(curr)
+                curr = {}
+            curr_inst = inst.case
+        curr[items[inst.item]] = db.session.query(models.Value.name).filter(models.Value.id==inst.value).first()[0]
+    data.append(curr)
+    res['data'] = data
+    res['count'] = len(data)
+
+    # df = pd.DataFrame(data)
+    return jsonify(res)
