@@ -77,7 +77,8 @@ def load():
 
     i11 = models.Item(name='Age',
                       description='Filter by age range.',
-                      category=c1.id)
+                      category=c1.id,
+                      is_numeric=True)
     i12 = models.Item(name='Sex',
                       description='Filter by sex.',
                       category=c1.id)
@@ -89,10 +90,12 @@ def load():
                       category=c1.id)
     i21 = models.Item(name='CASI IRT Score (Baseline)',
                       description='Baseline cognitive abilities screening instrument (CASI) score.',
-                      category=c2.id)
+                      category=c2.id,
+                      is_numeric=True)
     i22 = models.Item(name='CASI IRT Score (Follow-up)',
                       description='Most recent follow-up cognitive abilities screening instrument (CASI) score.',
-                      category=c2.id)
+                      category=c2.id,
+                      is_numeric=True)
     i31 = models.Item(name='Any AD',
                       description='Any alzheimer\'s disease.',
                       category=c3.id)
