@@ -59,7 +59,7 @@ def api_filter():
     for key, val in request.args.lists():
         cases_ = set(
             db.session.query(models.Variable.case).filter(
-                models.Variable.item==key,
+                models.Variable.item == key,
                 models.Variable.value.in_(val)
             ).all()
         )
@@ -82,15 +82,15 @@ def api_filter():
     curr = {}
     curr_inst = None
     for inst in db.session.query(models.Variable).filter(
-        models.Variable.case.in_(cases),
-        models.Variable.item.in_(items)
+            models.Variable.case.in_(cases),
+            models.Variable.item.in_(items)
     ).order_by(models.Variable.case, models.Variable.item):
         if inst.case != curr_inst:
             if curr:
                 data.append(curr)
                 curr = {}
             curr_inst = inst.case
-        curr[items[inst.item]] = db.session.query(models.Value.name).filter(models.Value.id==inst.value).first()[0]
+        curr[items[inst.item]] = db.session.query(models.Value.name).filter(models.Value.id == inst.value).first()[0]
     data.append(curr)
     res['data'] = data
     res['count'] = len(data)
@@ -106,17 +106,34 @@ def add_category(category_id):
     """
     res = {'items': []}
     for item in models.Item.query.filter_by(category=category_id):
-        vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item==item.id)]
+        vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
         res['items'].append({
             'name': item.name,
             'id': item.id,
             'description': item.description,
             'values': [
                 {'id': v.id, 'name': v.name, 'description': v.description
-                } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
-            ]
+                 } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
+                ]
         })
     category = models.Category.query.filter_by(id=category_id).first()
     res['name'] = category.name
     res['description'] = category.description
     return jsonify(res)
+
+
+@app.route('/api/item/add/<int:item_id>', methods=['GET'])
+def add_category_from_item(item_id):
+    """Get category from item
+
+    """
+    return add_category(models.Item.query.filter_by(id=item_id).first().category)
+
+
+@app.route('/api/value/add/<int:value_id>', methods=['GET'])
+def add_categories_from_value(value_id):
+    """Get category from item
+
+    """
+    val = models.Value.query.filter_by(id=value_id).first()
+    return add_category_from_item(models.Variable.query.filter_by(value=val.id).first().item)
