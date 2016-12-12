@@ -1,5 +1,6 @@
 from flask import request, jsonify
 import pandas as pd
+from flask.ext.cors import cross_origin
 
 from dqt_api import db, app, models
 
@@ -10,6 +11,7 @@ def index():
 
 
 @app.route('/api/search', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def search():
     """Search target should use these conventions:
         space: +
@@ -49,6 +51,7 @@ def search():
 
 
 @app.route('/api/filter', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def api_filter():
     """Filter population based on parameters.
 
@@ -100,6 +103,7 @@ def api_filter():
 
 
 @app.route('/api/category/add/<int:category_id>', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def add_category(category_id):
     """Get information about a particular category.
 
@@ -123,6 +127,7 @@ def add_category(category_id):
 
 
 @app.route('/api/item/add/<int:item_id>', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def add_category_from_item(item_id):
     """Get category from item
 
@@ -131,6 +136,7 @@ def add_category_from_item(item_id):
 
 
 @app.route('/api/value/add/<int:value_id>', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def add_categories_from_value(value_id):
     """Get category from item
 
