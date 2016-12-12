@@ -30,7 +30,7 @@ def search():
     # search item
     for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
         terms.append({
-            'type': 'category',
+            'type': 'item',
             'id': i.id,
             'name': i.name,
             'description': i.description
@@ -39,7 +39,7 @@ def search():
     # search value
     for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
         terms.append({
-            'type': 'category',
+            'type': 'value',
             'id': v.id,
             'name': v.name,
             'description': v.description
@@ -96,4 +96,27 @@ def api_filter():
     res['count'] = len(data)
 
     # df = pd.DataFrame(data)
+    return jsonify(res)
+
+
+@app.route('/api/category/add/<int:category_id>', methods=['GET'])
+def add_category(category_id):
+    """Get information about a particular category.
+
+    """
+    res = {'items': []}
+    for item in models.Item.query.filter_by(category=category_id):
+        vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item==item.id)]
+        res['items'].append({
+            'name': item.name,
+            'id': item.id,
+            'description': item.description,
+            'values': [
+                {'id': v.id, 'name': v.name, 'description': v.description
+                } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
+            ]
+        })
+    category = models.Category.query.filter_by(id=category_id).first()
+    res['name'] = category.name
+    res['description'] = category.description
     return jsonify(res)
