@@ -1,5 +1,4 @@
 from flask import request, jsonify
-import pandas as pd
 from flask.ext.cors import cross_origin
 
 from dqt_api import db, app, models
@@ -46,7 +45,6 @@ def search():
             'name': v.name,
             'description': v.description
         })
-
     return jsonify({'search': terms})
 
 
@@ -98,7 +96,6 @@ def api_filter():
     res['data'] = data
     res['count'] = len(data)
 
-    # df = pd.DataFrame(data)
     return jsonify(res)
 
 
