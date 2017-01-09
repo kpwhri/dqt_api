@@ -89,6 +89,7 @@ def api_filter():
     curr = {}
     curr_inst = None
     ages = defaultdict(lambda: defaultdict(int))
+    enrollment = defaultdict(int)
     for inst in db.session.query(models.Variable).filter(
             models.Variable.case.in_(cases),
             models.Variable.item.in_(items)
@@ -109,6 +110,9 @@ def api_filter():
             ).first()
             age = db.session.query(models.Value.name).filter(models.Value.id == age_id.value).first()[0]
             ages[age][val] += 1
+        # enrollment info
+        if val in ['enrolled', 'disenrolled', 'unknown', 'died']:
+            enrollment[val] += 1
     data.append(curr)  # fencepost
 
     data = []
@@ -119,9 +123,19 @@ def api_filter():
             'female': ages[age]['female'],
             'total': ages[age]['male'] + ages[age]['female']
         })
+
+    res['enroll'] = []
+    for enr in enrollment:
+        res['enroll'].append(
+            {
+                'label': enr,
+                'count': enrollment[enr]
+            }
+        )
     res['data'] = data
     res['count'] = len(data)
     res['columns'] = ['male', 'female']
+    res['enroll-columns'] = ['enrolled', 'disenrolled', 'unknown', 'died']
 
     return jsonify(res)
 
