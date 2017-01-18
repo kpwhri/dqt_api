@@ -164,6 +164,34 @@ def add_category(category_id):
     return jsonify(res)
 
 
+@app.route('/api/category/all', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+def add_all_categories():
+    """Get information about a particular category.
+
+    """
+    categories = []
+    for category in models.Category.query.all():
+        category_id = category.id
+        res = {'items': []}
+        for item in models.Item.query.filter_by(category=category_id):
+            vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+            res['items'].append({
+                'name': item.name,
+                'id': item.id,
+                'description': item.description,
+                'values': [
+                    {'id': v.id, 'name': v.name, 'description': v.description
+                     } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
+                    ]
+            })
+        category = models.Category.query.filter_by(id=category_id).first()
+        res['name'] = category.name
+        res['description'] = category.description
+        categories.append(res)
+    return jsonify({'categories': categories})
+
+
 @app.route('/api/item/add/<int:item_id>', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def add_category_from_item(item_id):
