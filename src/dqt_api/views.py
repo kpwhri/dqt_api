@@ -148,15 +148,49 @@ def add_category(category_id):
     """
     res = {'items': []}
     for item in models.Item.query.filter_by(category=category_id):
-        vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+        variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+        values = []
+        ranges = []
+        for v in db.session.query(models.Value).filter(models.Value.id.in_(variables)).order_by(models.Value.name):
+            values.append(
+                {'id': v.id,
+                 'name': v.name,
+                 'description': v.description
+                 }
+            )
+            # determine if value could be part of range
+            if ranges is not None:
+                val = None
+                try:
+                    val = int(v.name)
+                except ValueError:
+                    pass
+                try:
+                    val = float(v.name)
+                except ValueError:
+                    pass
+                if val is None:
+                    ranges = None
+                else:
+                    ranges.append(val)
+
+        # determine step
+        if ranges:
+            prev = None
+            rsteps = []
+            for el in sorted(ranges):
+                if prev:
+                    rsteps.append(el - prev)
+                prev = el
+            ranges = [min(ranges), max(ranges), min(rsteps)]
+
+        # record data
         res['items'].append({
             'name': item.name,
             'id': item.id,
             'description': item.description,
-            'values': [
-                {'id': v.id, 'name': v.name, 'description': v.description
-                 } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
-                ]
+            'values': None if ranges else values,
+            'range': ranges
         })
     category = models.Category.query.filter_by(id=category_id).first()
     res['name'] = category.name
@@ -175,21 +209,70 @@ def add_all_categories():
         category_id = category.id
         res = {'items': []}
         for item in models.Item.query.filter_by(category=category_id):
-            vals = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+            variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+            values = []
+            ranges = []
+            for v in db.session.query(models.Value).filter(models.Value.id.in_(variables)).order_by(models.Value.name):
+                values.append(
+                    {'id': v.id,
+                     'name': v.name,
+                     'description': v.description
+                     }
+                )
+                # determine if value could be part of range
+                if ranges is not None:
+                    val = None
+                    try:
+                        val = int(v.name)
+                    except ValueError:
+                        pass
+                    try:
+                        val = float(v.name)
+                    except ValueError:
+                        pass
+                    if val is None:
+                        ranges = None
+                    else:
+                        ranges.append(val)
+
+            # determine step
+            if ranges:
+                prev = None
+                rsteps = []
+                for el in sorted(ranges):
+                    if prev:
+                        rsteps.append(el - prev)
+                    prev = el
+                rstep = min(rsteps)
+                ranges = [get_min_in_range(ranges, rstep), get_max_in_range(ranges, rstep), rstep]
+
+            # record data
             res['items'].append({
                 'name': item.name,
                 'id': item.id,
                 'description': item.description,
-                'values': [
-                    {'id': v.id, 'name': v.name, 'description': v.description
-                     } for v in db.session.query(models.Value).filter(models.Value.id.in_(vals)).order_by(models.Value.name)
-                    ]
+                'values': None if ranges else values,
+                'range': ranges
             })
         category = models.Category.query.filter_by(id=category_id).first()
         res['name'] = category.name
         res['description'] = category.description
         categories.append(res)
     return jsonify({'categories': categories})
+
+
+def get_min_in_range(ranges, rstep):
+    v = min(ranges)
+    if v % rstep:
+        v -= v % rstep
+    return v
+
+
+def get_max_in_range(ranges, rstep):
+    v = max(ranges)
+    if v % rstep:
+        v += rstep - (v % rstep)
+    return v
 
 
 @app.route('/api/item/add/<int:item_id>', methods=['GET'])
