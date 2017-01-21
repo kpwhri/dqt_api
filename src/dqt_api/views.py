@@ -59,13 +59,26 @@ def api_filter():
     """
     # get set of cases
     cases = None
-    for key, val in request.args.lists():
-        cases_ = set(
-            db.session.query(models.Variable.case).filter(
-                models.Variable.item == key,
-                models.Variable.value.in_(val)
-            ).all()
-        )
+    for key, [val, *_] in request.args.lists():
+        if '~' in val:
+            val = val.split('~')
+            cases_ = set(
+                db.session.query(models.Variable.case).join(
+                    models.Value
+                ).filter(
+                    models.Variable.item == key,
+                    models.Value.name >= val[0],
+                    models.Value.name <= val[1]
+                ).all()
+            )
+        else:
+            val = val.split('_')
+            cases_ = set(
+                db.session.query(models.Variable.case).filter(
+                    models.Variable.item == key,
+                    models.Variable.value.in_(val)
+                ).all()
+            )
         if cases:
             cases &= cases_
         else:
