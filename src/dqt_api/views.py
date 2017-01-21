@@ -28,7 +28,9 @@ def search():
             'type': 'category',
             'id': c.id,
             'name': c.name,
-            'description': c.description
+            'description': c.description,
+            'categoryId': c.id,
+            'itemId': None,
         })
     # search item
     for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -36,17 +38,19 @@ def search():
             'type': 'item',
             'id': i.id,
             'name': i.name,
-            'description': i.description
+            'description': i.description,
+            'categoryId': i.category,
+            'itemId': i.id,
         })
 
-    # search value
-    for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
-        terms.append({
-            'type': 'value',
-            'id': v.id,
-            'name': v.name,
-            'description': v.description
-        })
+    # search value (need to get a category for this!)
+    # for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
+    #     terms.append({
+    #         'type': 'value',
+    #         'id': v.id,
+    #         'name': v.name,
+    #         'description': v.description
+    #     })
     return jsonify({'search': terms})
 
 
@@ -268,6 +272,7 @@ def add_all_categories():
                 'range': ranges
             })
         category = models.Category.query.filter_by(id=category_id).first()
+        res['id'] = category.id
         res['name'] = category.name
         res['description'] = category.description
         categories.append(res)
