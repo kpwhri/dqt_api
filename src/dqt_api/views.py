@@ -60,6 +60,7 @@ def search():
 
 def parse_arg_list(arg_list):
     cases = None
+    no_results_flag = False
     for key, [val, *_] in arg_list:
         if '~' in val:
             val = val.split('~')
@@ -68,8 +69,7 @@ def parse_arg_list(arg_list):
                     models.Value
                 ).filter(
                     models.Variable.item == key,
-                    models.Value.name >= val[0],
-                    models.Value.name <= val[1]
+                    models.Value.name.between(val[0], val[1])
                 ).all()
             )
         else:
@@ -85,9 +85,11 @@ def parse_arg_list(arg_list):
         else:
             cases = cases_
     if not cases:
+        if cases is not None:
+            no_results_flag = True
         cases = db.session.query(models.Variable.case).all()
     cases = [x[0] for x in list(cases)]
-    return cases
+    return cases, no_results_flag
 
 
 def get_age_step(df):
@@ -97,7 +99,8 @@ def get_age_step(df):
     if age_step and age_max and age_min:
         return age_min, age_max, age_step  # return early
 
-    ages = df['age'].unique()
+    # ages = df['age'].unique()
+    ages = [x[0] for x in db.session.query(models.DataModel.age).all()]
     if not age_step:
         step = []
         prev_age = None
@@ -139,7 +142,7 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def api_filter_chart():
     # get set of cases
-    cases = parse_arg_list(request.args.lists())
+    cases, no_results_flag = parse_arg_list(request.args.lists())
 
     # get data for graphs
     data = models.DataModel.query.filter(
@@ -158,7 +161,7 @@ def api_filter_chart():
 
     return jsonify({
         'age': sex_data,
-        'count': len(df.index),
+        'count': 0 if no_results_flag else len(df.index),
     })
 
 
