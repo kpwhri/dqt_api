@@ -161,8 +161,17 @@ def api_filter_chart():
             'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True)
         })
 
+    enroll_data = {
+        'labels': [],
+        'datasets': [{'data': []}]
+    }
+    for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
+        enroll_data['labels'].append(label)
+        enroll_data['datasets'][0]['data'].append(int(cnt))
+
     return jsonify({
         'age': sex_data,
+        'enrollment': enroll_data,
         'count': 0 if no_results_flag else len(df.index),
     })
 
