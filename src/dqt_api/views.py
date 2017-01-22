@@ -60,7 +60,7 @@ def search():
 
 def parse_arg_list(arg_list):
     cases = None
-    no_results_flag = False
+    no_results_flag = None
     for key, [val, *_] in arg_list:
         if '~' in val:
             val = val.split('~')
@@ -69,7 +69,7 @@ def parse_arg_list(arg_list):
                     models.Value
                 ).filter(
                     models.Variable.item == key,
-                    models.Value.name.between(val[0], val[1])
+                    models.Value.name.between(int(val[0]), int(val[1]))
                 ).all()
             )
         else:
@@ -85,8 +85,10 @@ def parse_arg_list(arg_list):
         else:
             cases = cases_
     if not cases:
-        if cases is not None:
-            no_results_flag = True
+        if cases is None:
+            no_results_flag = False  # there was no query/empty query
+        else:
+            no_results_flag = True  # this query has returned no results
         cases = db.session.query(models.Variable.case).all()
     cases = [x[0] for x in list(cases)]
     return cases, no_results_flag
