@@ -54,3 +54,13 @@ class ItemValue(db.Model):
     item = db.Column(db.Integer, db.ForeignKey('item.id'))
     value = db.Column(db.Integer, db.ForeignKey('value.id'))
     range_max = db.Column(db.Boolean)  # true: max of range; false: min of range; null: categorical relationship
+
+
+class DataModel(db.Model):
+    """Data table for graphing/other tables.
+    This table must be modified to extract additional information for graphs/tables
+    """
+    case = db.Column(db.Integer, primary_key=True)
+    age = db.Column(db.Integer)
+    sex = db.Column(db.String(10))
+    enrollment = db.Column(db.String(15))

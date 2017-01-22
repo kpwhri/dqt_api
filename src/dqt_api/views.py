@@ -54,16 +54,9 @@ def search():
     return jsonify({'search': terms})
 
 
-@app.route('/api/filter', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
-def api_filter():
-    """Filter population based on parameters.
-
-    TODO: parameterize items to return
-    """
-    # get set of cases
+def parse_arg_list(arg_list):
     cases = None
-    for key, [val, *_] in request.args.lists():
+    for key, [val, *_] in arg_list:
         if '~' in val:
             val = val.split('~')
             cases_ = set(
@@ -90,6 +83,93 @@ def api_filter():
     if not cases:
         cases = db.session.query(models.Variable.case).all()
     cases = [x[0] for x in list(cases)]
+    return cases
+
+
+@app.route('/api/filter/chart', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+def api_filter_chart():
+    # get set of cases
+    cases = parse_arg_list(request.args.lists())
+    # get data for graphs
+    res = {}
+
+    items = {
+        models.Item.query.filter_by(name='Sex').first().id: 'sex',
+        models.Item.query.filter_by(name='Current Status').first().id: 'current_status',
+        # models.Item.query.filter_by(name='Age').first().id: 'age',
+    }
+
+    age_var = models.Item.query.filter_by(name='Age').first().id
+    data = []
+    curr = {}
+    curr_inst = None
+    male = {}
+    female = {}
+    ages = defaultdict(lambda: defaultdict(int))
+    enrollment = defaultdict(int)
+    for inst in db.session.query(models.Variable).filter(
+            models.Variable.case.in_(cases),
+            models.Variable.item.in_(items)
+    ).order_by(models.Variable.case, models.Variable.item):
+        val = db.session.query(models.Value.name).filter(models.Value.id == inst.value).first()[0]
+        # build json
+        if inst.case != curr_inst:
+            if curr:
+                data.append(curr)
+                curr = {}
+            curr_inst = inst.case
+        curr[items[inst.item]] = val
+        # build male/female - age json
+        if val == 'male' or val == 'female':
+            age_id = db.session.query(models.Variable).filter(
+                models.Variable.case == inst.case,
+                models.Variable.item == age_var
+            ).first()
+            age = db.session.query(models.Value.name).filter(models.Value.id == age_id.value).first()[0]
+            ages[age][val] += 1
+        # enrollment info
+        if val in ['enrolled', 'disenrolled', 'unknown', 'died']:
+            enrollment[val] += 1
+    data.append(curr)  # fencepost
+
+    data = []
+    for age in ages:
+        data.append({
+            'age': age,
+            'male': ages[age]['male'],
+            'female': ages[age]['female'],
+            'total': ages[age]['male'] + ages[age]['female']
+        })
+
+    res['enroll'] = []
+    for enr in enrollment:
+        res['enroll'].append(
+            {
+                'label': enr,
+                'count': enrollment[enr]
+            }
+        )
+    res['data'] = data
+    res['count'] = len(data)
+    res['columns'] = ['male', 'female']
+    res['enroll-columns'] = ['enrolled', 'disenrolled', 'unknown', 'died']
+
+
+    return jsonify({
+        'labels': labels,
+        'datasets': datasets
+    })
+
+@app.route('/api/filter', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+def api_filter():
+    """Filter population based on parameters.
+
+    TODO: parameterize items to return
+    """
+    # get set of cases
+    cases = parse_arg_list(request.args.lists())
 
     # get data for graphs
     res = {}

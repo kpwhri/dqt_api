@@ -2,6 +2,8 @@ import argparse
 import random
 
 import sys
+from collections import defaultdict
+
 from flask_alembic import Alembic
 from flask_script import Manager
 from flask_migrate import Migrate
@@ -124,11 +126,18 @@ def load(count):
 
     load_all(*cis + mf + race + ages + yn + casi + status, commit=True)
     # load subjects with random data
+    graph_data = defaultdict(defaultdict)  # separate summary data table
     for i in range(count):
-        for item, vals in [(i11, ages), (i12, mf), (i13, race), (i14, yn),
-                           (i21, casi), (i22, casi), (i31, yn), (i32, yn),
-                           (i41, status)]:
-            db.session.add(models.Variable(case=i, item=item.id, value=random.choice(vals).id))
+        for item, vals, label in [(i11, ages, 'age'), (i12, mf, 'sex'), (i13, race, None), (i14, yn, None),
+                           (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
+                           (i41, status, 'enrollment')]:
+            sel = random.choice(vals)
+            db.session.add(models.Variable(case=i, item=item.id, value=sel.id))
+            if label:
+                graph_data[i][label] = sel.name
+    db.session.commit()
+    for case in graph_data:
+        db.session.add(models.DataModel(case=case, **graph_data[case]))
     db.session.commit()
 
 
