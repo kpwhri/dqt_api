@@ -1,7 +1,11 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 
+import math
+
+import pandas as pd
 from flask import request, jsonify
 from flask.ext.cors import cross_origin
+from sqlalchemy import func, inspect
 
 from dqt_api import db, app, models
 
@@ -86,80 +90,88 @@ def parse_arg_list(arg_list):
     return cases
 
 
+def get_age_step(df):
+    age_step = app.config.get('AGE_STEP')
+    age_max = app.config.get('AGE_MAX')
+    age_min = app.config.get('AGE_MIN')
+    if age_step and age_max and age_min:
+        return age_min, age_max, age_step  # return early
+
+    ages = df['age'].unique()
+    if not age_step:
+        step = []
+        prev_age = None
+        for age in ages:
+            if prev_age:
+                step.append(age - prev_age)
+            prev_age = age
+        age_step = min(step)
+    if not age_max:
+        age_max = get_max_in_range(ages, age_step)
+    if not age_min:
+        age_min = get_min_in_range(ages, age_step)
+    return age_min, age_max, age_step
+
+
+def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False):
+    """Count elements from the iterable into evenly spaced bins
+
+        >>> scores = [82, 85, 90, 91, 70, 87, 45]
+        >>> histogram(scores, 0, 100, 10)
+        [0, 0, 0, 0, 1, 0, 0, 1, 3, 2]
+
+    """
+    if not bins and not step:
+        raise ValueError('Need to specify either bins or step.')
+    if not step:
+        step = (high - low + 0.0) / bins
+    if not bins:
+        bins = int(math.ceil((high - low + 0.0) / step))
+
+    dist = Counter((float(x) - low) // step for x in iterable)
+    res = [dist[b] for b in range(bins)]
+    if group_extra_in_top_bin:
+        res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
+    return res
+
+
 @app.route('/api/filter/chart', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def api_filter_chart():
     # get set of cases
     cases = parse_arg_list(request.args.lists())
+
     # get data for graphs
-    res = {}
-
-    items = {
-        models.Item.query.filter_by(name='Sex').first().id: 'sex',
-        models.Item.query.filter_by(name='Current Status').first().id: 'current_status',
-        # models.Item.query.filter_by(name='Age').first().id: 'age',
-    }
-
-    age_var = models.Item.query.filter_by(name='Age').first().id
-    data = []
-    curr = {}
-    curr_inst = None
-    male = {}
-    female = {}
-    ages = defaultdict(lambda: defaultdict(int))
-    enrollment = defaultdict(int)
-    for inst in db.session.query(models.Variable).filter(
-            models.Variable.case.in_(cases),
-            models.Variable.item.in_(items)
-    ).order_by(models.Variable.case, models.Variable.item):
-        val = db.session.query(models.Value.name).filter(models.Value.id == inst.value).first()[0]
-        # build json
-        if inst.case != curr_inst:
-            if curr:
-                data.append(curr)
-                curr = {}
-            curr_inst = inst.case
-        curr[items[inst.item]] = val
-        # build male/female - age json
-        if val == 'male' or val == 'female':
-            age_id = db.session.query(models.Variable).filter(
-                models.Variable.case == inst.case,
-                models.Variable.item == age_var
-            ).first()
-            age = db.session.query(models.Value.name).filter(models.Value.id == age_id.value).first()[0]
-            ages[age][val] += 1
-        # enrollment info
-        if val in ['enrolled', 'disenrolled', 'unknown', 'died']:
-            enrollment[val] += 1
-    data.append(curr)  # fencepost
-
-    data = []
-    for age in ages:
-        data.append({
-            'age': age,
-            'male': ages[age]['male'],
-            'female': ages[age]['female'],
-            'total': ages[age]['male'] + ages[age]['female']
+    data = models.DataModel.query.filter(
+        models.DataModel.case.in_(cases)
+    ).all()
+    df = pd.DataFrame(query_to_dict(data))
+    age_min, age_max, age_step = get_age_step(df)
+    # get age counts for each sex
+    sex_data = {'labels': list(range(age_min, age_max + age_step, age_step)),
+                'datasets': []}
+    for label, age_df in df[['sex', 'age']].groupby(['sex']):
+        sex_data['datasets'].append({
+            'label': label.capitalize(),
+            'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True)
         })
 
-    res['enroll'] = []
-    for enr in enrollment:
-        res['enroll'].append(
-            {
-                'label': enr,
-                'count': enrollment[enr]
-            }
-        )
-    res['data'] = data
-    res['count'] = len(data)
-    res['columns'] = ['male', 'female']
-    res['enroll-columns'] = ['enrolled', 'disenrolled', 'unknown', 'died']
-
-
     return jsonify({
-        'labels': labels,
-        'datasets': datasets
+        'age': sex_data,
+        'count': len(df.index),
     })
+
+
+def query_to_dict(rset):
+    """Stole this from: https://gist.github.com/garaud/bda10fa55df5723e27da
+    """
+    result = defaultdict(list)
+    for obj in rset:
+        instance = inspect(obj)
+        for key, x in instance.attrs.items():
+            result[key].append(x.value)
+    return result
+
 
 @app.route('/api/filter', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
