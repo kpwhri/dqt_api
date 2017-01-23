@@ -44,7 +44,16 @@ class Value(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
+    name_numeric = db.Column(db.Numeric)
     description = db.Column(db.String(500))
+
+    def __init__(self, name, description=None):
+        try:
+            self.name_numeric = float(name)
+        except ValueError:
+            self.name_numeric = None
+        self.name = name
+        self.description = description
 
 
 class ItemValue(db.Model):
