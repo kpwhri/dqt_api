@@ -1,7 +1,9 @@
 from collections import defaultdict, Counter
 
 import math
+from itertools import zip_longest
 
+import itertools
 import pandas as pd
 from flask import request, jsonify
 from flask.ext.cors import cross_origin
@@ -147,9 +149,12 @@ def api_filter_chart():
     cases, no_results_flag = parse_arg_list(request.args.lists())
 
     # get data for graphs
-    data = models.DataModel.query.filter(
-        models.DataModel.case.in_(cases)
-    ).all()
+    data = iterchain(
+        (models.DataModel.query.filter(
+            models.DataModel.case.in_(case_set)
+        ).all() for case_set in chunker(cases, 2000)),
+        depth=3
+    )
     df = pd.DataFrame(query_to_dict(data))
     age_min, age_max, age_step = get_age_step(df)
     # get age counts for each sex
@@ -187,6 +192,23 @@ def query_to_dict(rset):
     return result
 
 
+def iterchain(*args, depth=2):
+    for element in args:
+        for elements in element:
+            for el in elements:
+                yield el
+    raise StopIteration
+
+
+def iterchain2(*args, depth=2):
+    for element in args:
+        if depth > 1:
+            iterchain(element, depth=depth-1)
+        else:
+            yield element
+    raise StopIteration
+
+
 @app.route('/api/filter', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def api_filter():
@@ -195,70 +217,74 @@ def api_filter():
     TODO: parameterize items to return
     """
     # get set of cases
-    cases = parse_arg_list(request.args.lists())
+    # cases = parse_arg_list(request.args.lists())
 
     # get data for graphs
     res = {}
 
-    items = {
-        models.Item.query.filter_by(name='Sex').first().id: 'sex',
-        models.Item.query.filter_by(name='Current Status').first().id: 'current_status',
-        # models.Item.query.filter_by(name='Age').first().id: 'age',
-    }
-
-    age_var = models.Item.query.filter_by(name='Age').first().id
-
-    data = []
-    curr = {}
-    curr_inst = None
-    ages = defaultdict(lambda: defaultdict(int))
-    enrollment = defaultdict(int)
-    for inst in db.session.query(models.Variable).filter(
-            models.Variable.case.in_(cases),
-            models.Variable.item.in_(items)
-    ).order_by(models.Variable.case, models.Variable.item):
-        val = db.session.query(models.Value.name).filter(models.Value.id == inst.value).first()[0]
-        # build json
-        if inst.case != curr_inst:
-            if curr:
-                data.append(curr)
-                curr = {}
-            curr_inst = inst.case
-        curr[items[inst.item]] = val
-        # build male/female - age json
-        if val == 'male' or val == 'female':
-            age_id = db.session.query(models.Variable).filter(
-                models.Variable.case == inst.case,
-                models.Variable.item == age_var
-            ).first()
-            age = db.session.query(models.Value.name).filter(models.Value.id == age_id.value).first()[0]
-            ages[age][val] += 1
-        # enrollment info
-        if val in ['enrolled', 'disenrolled', 'unknown', 'died']:
-            enrollment[val] += 1
-    data.append(curr)  # fencepost
-
-    data = []
-    for age in ages:
-        data.append({
-            'age': age,
-            'male': ages[age]['male'],
-            'female': ages[age]['female'],
-            'total': ages[age]['male'] + ages[age]['female']
-        })
-
-    res['enroll'] = []
-    for enr in enrollment:
-        res['enroll'].append(
-            {
-                'label': enr,
-                'count': enrollment[enr]
-            }
-        )
-    res['data'] = data
-    res['count'] = len(data)
-    res['columns'] = ['male', 'female']
-    res['enroll-columns'] = ['enrolled', 'disenrolled', 'unknown', 'died']
+    # items = {
+    #     models.Item.query.filter_by(name='Sex').first().id: 'sex',
+    #     models.Item.query.filter_by(name='Current Status').first().id: 'current_status',
+    #     # models.Item.query.filter_by(name='Age').first().id: 'age',
+    # }
+    #
+    # age_var = models.Item.query.filter_by(name='Age').first().id
+    #
+    # data = []
+    # curr = {}
+    # curr_inst = None
+    # ages = defaultdict(lambda: defaultdict(int))
+    # enrollment = defaultdict(int)
+    # if len(items) > 2000:
+    #     raise ValueError('Too many items in query: maximum of 2000.')
+    # for inst in iterchain(db.session.query(models.Variable).filter(
+    #         models.Variable.case.in_(case_set),
+    #         models.Variable.item.in_(items)
+    # ).order_by(
+    #     models.Variable.case, models.Variable.item
+    # ) for case_set in chunker(cases, 2050 - len(items))):
+    #     val = db.session.query(models.Value.name).filter(models.Value.id == inst.value).first()[0]
+    #     # build json
+    #     if inst.case != curr_inst:
+    #         if curr:
+    #             data.append(curr)
+    #             curr = {}
+    #         curr_inst = inst.case
+    #     curr[items[inst.item]] = val
+    #     # build male/female - age json
+    #     if val == 'male' or val == 'female':
+    #         age_id = db.session.query(models.Variable).filter(
+    #             models.Variable.case == inst.case,
+    #             models.Variable.item == age_var
+    #         ).first()
+    #         age = db.session.query(models.Value.name).filter(models.Value.id == age_id.value).first()[0]
+    #         ages[age][val] += 1
+    #     # enrollment info
+    #     if val in ['enrolled', 'disenrolled', 'unknown', 'died']:
+    #         enrollment[val] += 1
+    # data.append(curr)  # fencepost
+    #
+    # data = []
+    # for age in ages:
+    #     data.append({
+    #         'age': age,
+    #         'male': ages[age]['male'],
+    #         'female': ages[age]['female'],
+    #         'total': ages[age]['male'] + ages[age]['female']
+    #     })
+    #
+    # res['enroll'] = []
+    # for enr in enrollment:
+    #     res['enroll'].append(
+    #         {
+    #             'label': enr,
+    #             'count': enrollment[enr]
+    #         }
+    #     )
+    # res['data'] = data
+    # res['count'] = len(data)
+    # res['columns'] = ['male', 'female']
+    # res['enroll-columns'] = ['enrolled', 'disenrolled', 'unknown', 'died']
 
     return jsonify(res)
 
@@ -321,6 +347,10 @@ def add_category(category_id):
     return jsonify(res)
 
 
+def chunker(iterable, chunk_size, fillvalue=None):
+    return zip_longest(*[iter(iterable)] * chunk_size, fillvalue=fillvalue)
+
+
 @app.route('/api/category/all', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def add_all_categories():
@@ -332,10 +362,15 @@ def add_all_categories():
         category_id = category.id
         res = {'items': []}
         for item in models.Item.query.filter_by(category=category_id):
-            variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
             values = []
             ranges = []
-            for v in db.session.query(models.Value).filter(models.Value.id.in_(variables)).order_by(models.Value.name):
+            for v in db.session.query(models.Value).join(
+                models.Variable
+            ).filter(
+                models.Variable.item == item.id
+            ).order_by(
+                models.Value.name
+            ):
                 values.append(
                     {'id': v.id,
                      'name': v.name,
@@ -362,7 +397,7 @@ def add_all_categories():
             if ranges:
                 prev = None
                 rsteps = []
-                for el in sorted(ranges):
+                for el in sorted(set(ranges)):
                     if prev:
                         rsteps.append(el - prev)
                     prev = el
@@ -387,14 +422,20 @@ def add_all_categories():
 
 def get_min_in_range(ranges, rstep):
     v = min(ranges)
-    if v % rstep:
+    rstep = rstep
+    if v and v % rstep:
         v -= v % rstep
     return v
 
 
 def get_max_in_range(ranges, rstep):
     v = max(ranges)
-    if v % rstep:
+    try:
+        v % rstep
+    except ZeroDivisionError:
+        print(v)
+        print(rstep)
+    if v and v % rstep:
         v += rstep - (v % rstep)
     return v
 
