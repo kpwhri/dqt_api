@@ -12,6 +12,7 @@ from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
+# mapping of csv columns to category names
 COLUMN_TO_CATEGORY = {
     'casi_irt': 'CASI',
     'anyad': 'Dementia/AD',
@@ -45,10 +46,16 @@ ITEMS = {}  # name -> models.Item
 
 
 def int_round(x, base=5):
+    """Round a number to the nearest 'base' """
     return int(base * round(float(x)/base))
 
 
 def add_categories():
+    """
+    Add categories to database based on the specification in
+    'column_to_category' global variable.
+    :return:
+    """
     for cat in set(COLUMN_TO_CATEGORY.values()):
         c = models.Category(name=cat)
         CATEGORIES[cat] = c
@@ -56,8 +63,14 @@ def add_categories():
     db.session.commit()
 
 
-def add_items(items, labels):
-    for item, label in zip(items, labels):
+def add_items(items, descriptions):
+    """
+    Add items to database along with their descriptions, and commit.
+    :param items: label to display for each item
+    :param descriptions: description of items (second column of csv)
+    :return:
+    """
+    for item, label in zip(items, descriptions):
         if item in COLUMN_TO_CATEGORY:
             i = models.Item(name=item,
                             description=label,
@@ -67,9 +80,16 @@ def add_items(items, labels):
     db.session.commit()
 
 
-def parse_csv(fp):
+def parse_csv(fp, age, gender, enrollment):
+    """
+    Load csv file into database, committing after each case.
+    :param fp:
+    :param age: column name for age variable (for graphing)
+    :param gender: column name for gender variable (for graphing)
+    :param enrollment: column name for enrollment variable (for graphing)
+    :return:
+    """
     items = []
-    graph_data = defaultdict(defaultdict)  # separate summary data table
     add_categories()
     with open(fp, newline='') as fh:
         reader = csv.reader(fh)
@@ -79,6 +99,7 @@ def parse_csv(fp):
             elif i == 1:  # labels
                 add_items(items, line)
             else:
+                graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
                         continue
@@ -101,7 +122,6 @@ def parse_csv(fp):
                         val = models.Value(name=value)
                         VALUES[value] = val
                         db.session.add(val)
-                        db.session.commit()
                     new_value = VALUES[value]
 
                     # add variable with item and value
@@ -110,11 +130,53 @@ def parse_csv(fp):
                                           value=new_value.id)
                     db.session.add(var)
 
-                    if items[j] in ['gender', 'baseline_age', 'current_status']:
-                        graph_data[i][items[j]] = value
-                db.session.commit()
-    for case in graph_data:
-        db.session.add(models.DataModel(case=case, **graph_data[case]))
+                    if items[j] in [age, gender, enrollment]:
+                        graph_data[items[j]] = value
+
+                db.session.add(models.DataModel(case=i,
+                                                age=graph_data[age],
+                                                sex=graph_data[gender],
+                                                enrollment=graph_data[enrollment]))
+                db.session.commit()  # commit each case separately
+                print('Committed case #{} (stored with name {}).'.format(i+1, i))
+
+
+def parse_csv_for_graph_data(fp, age, gender, enrollment):
+    """
+    Add only data models (these used to be the last to load, and so error prone).
+
+    :param fp:
+    :param age:
+    :param gender:
+    :param enrollment:
+    :return:
+    """
+    mapping = {}
+    with open(fp, newline='') as fh:
+        reader = csv.reader(fh)
+        for i, line in enumerate(reader):
+            graph_data = defaultdict(lambda: None)  # separate summary data table
+            if i == 0:
+                for j, value in enumerate(line):
+                    if value.lower() in [age, gender, enrollment]:
+                        mapping[j] = value.lower()
+            elif i == 1:
+                continue
+            else:
+                for j, value in enumerate(line):
+                    if j not in mapping:
+                        continue
+                    if not value.strip():  # empty/missing value: exclude
+                        continue
+                    # convert date to year
+                    if mapping[j] == age:
+                        value = str(int_round(value))
+
+                    graph_data[mapping[j]] = value
+                db.session.add(models.DataModel(case=i,
+                                                age=graph_data[age],
+                                                sex=graph_data[gender],
+                                                enrollment=graph_data[enrollment]))
     db.session.commit()
 
 
@@ -127,13 +189,24 @@ def main():
                         help='Run in debug mode.')
     parser.add_argument('--csv-file',
                         help='Input csv file containing separate record per line.')
+    parser.add_argument('--only-graph-data', action='store_true', default=False,
+                        help='This part did not complete.')
+    parser.add_argument('--age', required=True,
+                        help='Variable for age (for graphing).')
+    parser.add_argument('--gender', required=True,
+                        help='Variable for gender (for graphing).')
+    parser.add_argument('--enrollment', required=True,
+                        help='Variable for enrollment (for graphing).')
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
 
     args = parser.parse_args()
-    parse_csv(args.csv_file)
+    if args.only_graph_data:
+        parse_csv_for_graph_data(args.csv_file, args.age, args.gender, args.enrollment)
+    else:
+        parse_csv(args.csv_file, args.age, args.gender, args.enrollment)
 
 
 if __name__ == '__main__':

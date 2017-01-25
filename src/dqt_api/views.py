@@ -322,7 +322,11 @@ def add_all_categories():
                         rsteps.append(el - prev)
                     prev = el
                 rstep = min(rsteps)
-                ranges = [get_min_in_range(ranges, rstep), get_max_in_range(ranges, rstep), rstep]
+                try:
+                    ranges = [get_min_in_range(ranges, rstep), get_max_in_range(ranges, rstep), rstep]
+                except Exception as e:
+                    print(e)
+                    pass
 
             # record data
             res['items'].append({
@@ -341,7 +345,7 @@ def add_all_categories():
 
 
 def get_min_in_range(ranges, rstep):
-    v = min(ranges)
+    v = min(x for x in ranges if x is not None)
     rstep = rstep
     if v and v % rstep:
         v -= v % rstep
@@ -349,7 +353,7 @@ def get_min_in_range(ranges, rstep):
 
 
 def get_max_in_range(ranges, rstep):
-    v = max(ranges)
+    v = max(x for x in ranges if x is not None)
     try:
         v % rstep
     except ZeroDivisionError:
