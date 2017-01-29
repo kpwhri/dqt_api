@@ -57,7 +57,7 @@ def main():
                         help='Specify port to run file on.')
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
-                             'BASE_DIR, SECRET_KEY.')
+                             'BASE_DIR, SECRET_KEY, AGE_STEP, AGE_MAX, AGE_MIN, MASK.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
     args = parser.parse_args()

@@ -119,7 +119,7 @@ def get_age_step(df):
     return age_min, age_max, age_step
 
 
-def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False):
+def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False, mask=0):
     """Count elements from the iterable into evenly spaced bins
 
         >>> scores = [82, 85, 90, 91, 70, 87, 45]
@@ -133,12 +133,11 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
         step = (high - low + 0.0) / bins
     if not bins:
         bins = int(math.ceil((high - low + 0.0) / step))
-
     dist = Counter((float(x) - low) // step for x in iterable)
     res = [dist[b] for b in range(bins)]
     if group_extra_in_top_bin:
         res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    return res
+    return [r if r > mask else 0 for r in res]
 
 
 @app.route('/api/filter/chart', methods=['GET'])
@@ -155,6 +154,7 @@ def api_filter_chart():
         depth=3
     )
     df = pd.DataFrame(query_to_dict(data))
+    mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step(df)
     # get age counts for each sex
     sex_data = {'labels': list(range(age_min, age_max + age_step, age_step)),
@@ -162,7 +162,8 @@ def api_filter_chart():
     for label, age_df in df[['sex', 'age']].groupby(['sex']):
         sex_data['datasets'].append({
             'label': label.capitalize(),
-            'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True)
+            'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                              mask=mask_value)
         })
 
     enroll_data = {
@@ -171,12 +172,16 @@ def api_filter_chart():
     }
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         enroll_data['labels'].append(label)
-        enroll_data['datasets'][0]['data'].append(int(cnt))
+        cnt = int(cnt)
+        if cnt <= mask_value:
+            cnt = 0
+        enroll_data['datasets'][0]['data'].append(cnt)
 
+    # ensure that masking has been done on all following values
     return jsonify({
         'age': sex_data,
         'enrollment': enroll_data,
-        'count': 0 if no_results_flag else len(df.index),
+        'count': 0 if no_results_flag or len(df.index) > mask_value else len(df.index),
     })
 
 
@@ -202,7 +207,7 @@ def iterchain(*args, depth=2):
 def iterchain2(*args, depth=2):
     for element in args:
         if depth > 1:
-            iterchain(element, depth=depth-1)
+            iterchain(element, depth=depth - 1)
         else:
             yield element
     raise StopIteration
@@ -284,9 +289,9 @@ def add_all_categories():
             values = []
             ranges = []
             for v in db.session.query(models.Value).join(
-                models.Variable
+                    models.Variable
             ).filter(
-                models.Variable.item == item.id
+                        models.Variable.item == item.id
             ).order_by(
                 models.Value.name
             ):
