@@ -1,4 +1,4 @@
-"""Not really meant to general purpose, but at least provides an example
+"""Not really meant to be general purpose, but at least provides an example
 of how to load data from csv into the dqt format.
 
 """
@@ -191,11 +191,11 @@ def main():
                         help='Input csv file containing separate record per line.')
     parser.add_argument('--only-graph-data', action='store_true', default=False,
                         help='This part did not complete.')
-    parser.add_argument('--age', required=True,
+    parser.add_argument('--age', required=True, type=str.lower,
                         help='Variable for age (for graphing).')
-    parser.add_argument('--gender', required=True,
+    parser.add_argument('--gender', required=True, type=str.lower,
                         help='Variable for gender (for graphing).')
-    parser.add_argument('--enrollment', required=True,
+    parser.add_argument('--enrollment', required=True, type=str.lower,
                         help='Variable for enrollment (for graphing).')
     args, unk = parser.parse_known_args()
 
