@@ -181,7 +181,7 @@ def api_filter_chart():
     return jsonify({
         'age': sex_data,
         'enrollment': enroll_data,
-        'count': 0 if no_results_flag or len(df.index) > mask_value else len(df.index),
+        'count': 0 if no_results_flag or len(df.index) <= mask_value else len(df.index),
     })
 
 
