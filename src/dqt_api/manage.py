@@ -109,7 +109,19 @@ def load(count):
     i41 = models.Item(name='Current Status',
                       description='Current enrollment status in ACT.',
                       category=c4.id)
-    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41]
+    i42 = models.Item(name='Enrollment before Baseline',
+                      description='Filter by enrollment years.',
+                      category=c1.id,
+                      is_numeric=True)
+    i43 = models.Item(name='Enrollment to Last Followup',
+                      description='Filter by enrollment years.',
+                      category=c1.id,
+                      is_numeric=True)
+    i44 = models.Item(name='Total followup',
+                      description='Filter by years in cohort.',
+                      category=c1.id,
+                      is_numeric=True)
+    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41, i42, i43, i44]
 
     mf = [models.Value(name='male'), models.Value(name='female')]
     v3 = models.Value(name='white')
@@ -129,12 +141,27 @@ def load(count):
     graph_data = defaultdict(defaultdict)  # separate summary data table
     for i in range(count):
         for item, vals, label in [(i11, ages, 'age'), (i12, mf, 'sex'), (i13, race, None), (i14, yn, None),
-                           (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
-                           (i41, status, 'enrollment')]:
-            sel = random.choice(vals)
-            db.session.add(models.Variable(case=i, item=item.id, value=sel.id))
-            if label:
-                graph_data[i][label] = sel.name
+                                  (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
+                                  (i41, status, 'enrollment'), (None, None, 'enrollment-years')]:
+            if vals:
+                sel = random.choice(vals)
+                db.session.add(models.Variable(case=i, item=item.id, value=sel.id))
+                if label:
+                    graph_data[i][label] = sel.name
+            else:  # special case for related enrollment years data
+                enroll_before_baseline = models.Value(name=str(random.choice(range(0, 30))))
+                enroll_to_followup = models.Value(name=str(random.choice(range(0, 30))))
+                followup = models.Value(name=str(random.choice(range(2, int(enroll_to_followup.name) + 3))))
+                db.session.add(enroll_before_baseline)
+                db.session.add(enroll_to_followup)
+                db.session.add(followup)
+                db.session.add(models.Variable(case=i, item=i42.id, value=enroll_before_baseline.id))
+                db.session.add(models.Variable(case=i, item=i43.id, value=enroll_to_followup.id))
+                db.session.add(models.Variable(case=i, item=i44.id, value=followup.id))
+                graph_data[i]['enrollment_before_baseline'] = enroll_before_baseline.name
+                graph_data[i]['enrollment_to_followup'] = enroll_to_followup.name
+                graph_data[i]['followup_years'] = followup.name
+
     db.session.commit()
     for case in graph_data:
         db.session.add(models.DataModel(case=case, **graph_data[case]))

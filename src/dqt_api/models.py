@@ -73,3 +73,6 @@ class DataModel(db.Model):
     age = db.Column(db.Integer)
     sex = db.Column(db.String(10))
     enrollment = db.Column(db.String(15))
+    enrollment_before_baseline = db.Column(db.Integer)
+    enrollment_to_followup = db.Column(db.Integer)
+    followup_years = db.Column(db.Integer)

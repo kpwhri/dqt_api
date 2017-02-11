@@ -11,6 +11,16 @@ from sqlalchemy import inspect
 from dqt_api import db, app, models
 
 
+POPULATION_SIZE = 0
+
+
+@app.before_first_request
+def initialize(*args, **kwargs):
+    """Initialize starting values."""
+    global POPULATION_SIZE
+    POPULATION_SIZE = db.session.query(models.DataModel).count()
+
+
 @app.route('/', methods=['GET'])
 def index():
     return 'Home page.'
@@ -177,11 +187,28 @@ def api_filter_chart():
             cnt = 0
         enroll_data['datasets'][0]['data'].append(cnt)
 
+    if len(df.index) > mask_value and not no_results_flag:
+        selected_subjects = len(df.index)
+        enrollment_before_baseline = round(df['enrollment_before_baseline'].mean(), 2)
+        enrollment_to_followup = round(df['enrollment_to_followup'].mean(), 2)
+        followup_years = round(df['followup_years'].mean(), 2)
+    else:
+        selected_subjects = 0
+        enrollment_before_baseline = 0
+        enrollment_to_followup = 0
+        followup_years = 0
+
     # ensure that masking has been done on all following values
     return jsonify({
         'age': sex_data,
         'enrollment': enroll_data,
-        'count': 0 if no_results_flag or len(df.index) <= mask_value else len(df.index),
+        'subject_counts': [
+            {'header': 'Population', 'value': POPULATION_SIZE},
+            {'header': 'Selected', 'value': selected_subjects},
+            {'header': 'Enrollment before Baseline (mean years)', 'value': enrollment_before_baseline},
+            {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
+            {'header': 'Follow-up (mean years)', 'value': followup_years},
+        ]
     })
 
 
