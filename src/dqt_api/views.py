@@ -187,7 +187,8 @@ def api_filter_chart():
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step(df)
     # get age counts for each sex
-    sex_data = {'labels': list(range(age_min, age_max + age_step, age_step)),
+    age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max + age_step, age_step)]
+    sex_data = {'labels': age_buckets,  # show age range
                 'datasets': []}
     for label, age_df in df[['sex', 'age']].groupby(['sex']):
         sex_data['datasets'].append({
@@ -199,10 +200,11 @@ def api_filter_chart():
     intake_dates = [x[0] for x in db.session.query(models.DataModel.intake_date).all()]
     intake_date_data = {'labels': list(range(min(intake_dates), max(intake_dates) + 1, 1)),
                         'datasets': []}
-    for date, age_df in df[['sex', 'intake_date']].groupby(['sex']):
+    for label, age_df in df[['sex', 'intake_date']].groupby(['sex']):
         intake_date_data['datasets'].append({
-            'label': str(date),
-            'data': histogram(age_df['intake_date'], min(intake_dates), max(intake_dates), step=1, group_extra_in_top_bin=True,
+            'label': str(label),
+            'data': histogram(age_df['intake_date'], min(intake_dates), max(intake_dates)+1, step=1,
+                              group_extra_in_top_bin=True,
                               mask=mask_value)
         })
 
