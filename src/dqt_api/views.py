@@ -10,7 +10,6 @@ from sqlalchemy import inspect
 
 from dqt_api import db, app, models
 
-
 POPULATION_SIZE = 0
 
 
@@ -158,7 +157,7 @@ def api_filter_export():
         item = db.session.query(models.Item.name).filter_by(id=key).first()[0]
         if '~' in val:
             low_val, high_val = val.split('~')
-            filters.append('({} > {} AND {} < {})'.format(item, low_val, item, high_val))
+            filters.append('({} >= {} AND {} <= {})'.format(item, low_val, item, high_val))
         else:
             subfilters = []
             for v in val.split('_'):
@@ -197,6 +196,16 @@ def api_filter_chart():
                               mask=mask_value)
         })
 
+    intake_dates = [x[0] for x in db.session.query(models.DataModel.intake_date).all()]
+    intake_date_data = {'labels': list(range(min(intake_dates), max(intake_dates) + 1, 1)),
+                        'datasets': []}
+    for date, age_df in df[['sex', 'intake_date']].groupby(['sex']):
+        intake_date_data['datasets'].append({
+            'label': str(date),
+            'data': histogram(age_df['intake_date'], min(intake_dates), max(intake_dates), step=1, group_extra_in_top_bin=True,
+                              mask=mask_value)
+        })
+
     enroll_data = {
         'labels': [],
         'datasets': [{'data': []}]
@@ -229,7 +238,8 @@ def api_filter_chart():
             {'header': 'Enrollment before Baseline (mean years)', 'value': enrollment_before_baseline},
             {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
             {'header': 'Follow-up (mean years)', 'value': followup_years},
-        ]
+        ],
+        'intake_date': intake_date_data,
     })
 
 

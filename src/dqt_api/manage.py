@@ -111,17 +111,21 @@ def load(count):
                       category=c4.id)
     i42 = models.Item(name='Enrollment before Baseline',
                       description='Filter by enrollment years.',
-                      category=c1.id,
+                      category=c4.id,
                       is_numeric=True)
     i43 = models.Item(name='Enrollment to Last Followup',
                       description='Filter by enrollment years.',
-                      category=c1.id,
+                      category=c4.id,
                       is_numeric=True)
     i44 = models.Item(name='Total followup',
                       description='Filter by years in cohort.',
-                      category=c1.id,
+                      category=c4.id,
                       is_numeric=True)
-    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41, i42, i43, i44]
+    i45 = models.Item(name='Intake Date',
+                      description='Date when added to cohort.',
+                      category=c4.id,
+                      is_numeric=True)
+    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41, i42, i43, i44, i45]
 
     mf = [models.Value(name='male'), models.Value(name='female')]
     v3 = models.Value(name='white')
@@ -133,8 +137,8 @@ def load(count):
     ages = [models.Value(name=str(x)) for x in range(65, 102)]
     casi = [models.Value(name=str(x)) for x in range(0, 101)]
     yn = [models.Value(name='yes'), models.Value(name='no')]
-    status = [models.Value(name='enrolled'), models.Value(name='disenrolled'),
-              models.Value(name='unknown'), models.Value(name='died')]
+    status = [models.Value(name='alive'), models.Value(name='dead')]
+    intake_dates = [models.Value(name=str(x)) for x in range(1980, 2016)]
 
     load_all(*cis + mf + race + ages + yn + casi + status, commit=True)
     # load subjects with random data
@@ -142,7 +146,8 @@ def load(count):
     for i in range(count):
         for item, vals, label in [(i11, ages, 'age'), (i12, mf, 'sex'), (i13, race, None), (i14, yn, None),
                                   (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
-                                  (i41, status, 'enrollment'), (None, None, 'enrollment-years')]:
+                                  (i41, status, 'enrollment'), (None, None, 'enrollment-years'),
+                                  (i45, intake_dates, 'intake_date')]:
             if vals:
                 sel = random.choice(vals)
                 db.session.add(models.Variable(case=i, item=item.id, value=sel.id))

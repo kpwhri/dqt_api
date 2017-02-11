@@ -76,3 +76,4 @@ class DataModel(db.Model):
     enrollment_before_baseline = db.Column(db.Integer)
     enrollment_to_followup = db.Column(db.Integer)
     followup_years = db.Column(db.Integer)
+    intake_date = db.Column(db.Integer)
