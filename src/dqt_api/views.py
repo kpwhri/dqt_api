@@ -101,7 +101,7 @@ def parse_arg_list(arg_list):
         else:
             no_results_flag = True  # this query has returned no results
         cases = db.session.query(models.Variable.case).all()
-    cases = [x[0] for x in list(cases)]
+    cases = {x[0] for x in list(cases)}
     return cases, no_results_flag
 
 
