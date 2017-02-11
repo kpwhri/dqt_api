@@ -150,6 +150,27 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
     return [r if r > mask else 0 for r in res]
 
 
+@app.route('/api/filter/export', methods=['GET'])
+@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+def api_filter_export():
+    filters = []
+    for key, [val, *_] in request.args.lists():
+        item = db.session.query(models.Item.name).filter_by(id=key).first()[0]
+        if '~' in val:
+            low_val, high_val = val.split('~')
+            filters.append('({} > {} AND {} < {})'.format(item, low_val, item, high_val))
+        else:
+            subfilters = []
+            for v in val.split('_'):
+                subfilters.append(db.session.query(models.Value.name).filter_by(id=v).first()[0])
+                print(v, subfilters)
+            if len(subfilters) > 1:
+                filters.append('({} IN ({}))'.format(item, ', '.join(subfilters)))
+            else:
+                filters.append('({} = {})'.format(item, subfilters[0]))
+    return jsonify({'filterstring': ' AND '.join(filters)})
+
+
 @app.route('/api/filter/chart', methods=['GET'])
 @cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
 def api_filter_chart():
