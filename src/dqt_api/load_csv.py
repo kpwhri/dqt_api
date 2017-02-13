@@ -13,30 +13,8 @@ from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
 # mapping of csv columns to category names
-COLUMN_TO_CATEGORY = {
-    'casi_irt': 'CASI',
-    'anyad': 'Dementia/AD',
-    'onsetdate': 'Dementia/AD',
-    'diabetes': 'Comorbidities',
-    'insulin': 'Comorbidities',
-    'stroke': 'Comorbidities',
-    'cesd_flag': 'Comorbidities',
-    'cesd_score': 'Comorbidities',
-    'hrt': 'Comorbidities',
-    'adl_flag': 'Daily Living',
-    'adl_sum': 'Daily Living',
-    'iadl_flag': 'Daily Living',
-    'iadl_sum': 'Daily Living',
-    'intakedt': 'Cohort',
-    'autopsy': 'Cohort',
-    'current_status': 'Cohort',
-    'gender': 'Demographics',
-    'race_target': 'Demographics',
-    'hispanic': 'Demographics',
-    'years_enrolled': 'Cohort',
-    'cohort_exit_date': 'Cohort',
-    'baseline_age': 'Demographics',
-}
+COLUMN_TO_CATEGORY = {}
+COLUMN_TO_DESCRIPTION = {}
 
 CATEGORIES = {}  # name -> models.Category
 
@@ -47,7 +25,7 @@ ITEMS = {}  # name -> models.Item
 
 def int_round(x, base=5):
     """Round a number to the nearest 'base' """
-    return int(base * round(float(x)/base))
+    return int(base * round(float(x) / base))
 
 
 def add_categories():
@@ -63,24 +41,24 @@ def add_categories():
     db.session.commit()
 
 
-def add_items(items, descriptions):
+def add_items(items):
     """
     Add items to database along with their descriptions, and commit.
     :param items: label to display for each item
-    :param descriptions: description of items (second column of csv)
     :return:
     """
-    for item, label in zip(items, descriptions):
+    for item in items:
         if item in COLUMN_TO_CATEGORY:
             i = models.Item(name=item,
-                            description=label,
+                            description=COLUMN_TO_DESCRIPTION[item],
                             category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
             ITEMS[item] = i
             db.session.add(i)
     db.session.commit()
 
 
-def parse_csv(fp, age, gender, enrollment):
+def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollment_to_followup,
+              enrollment_before_baseline):
     """
     Load csv file into database, committing after each case.
     :param fp:
@@ -96,14 +74,14 @@ def parse_csv(fp, age, gender, enrollment):
         for i, line in enumerate(reader):
             if i == 0:
                 items = [x.lower() for x in line]
-            elif i == 1:  # labels
-                add_items(items, line)
+                add_items(items)
             else:
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
                         continue
                     if items[j] not in COLUMN_TO_CATEGORY:
+                        print('Missing: {}'.format(value.strip()))
                         continue
                     # convert date to year
                     if re.match('\d{2}\w{3}\d{4}', value):
@@ -130,21 +108,30 @@ def parse_csv(fp, age, gender, enrollment):
                                           value=new_value.id)
                     db.session.add(var)
 
-                    if items[j] in [age, gender, enrollment]:
+                    if items[j] in [age, gender, enrollment, enrollment_before_baseline,
+                                    enrollment_to_followup, followup_years, intake_date]:
                         graph_data[items[j]] = value
 
                 db.session.add(models.DataModel(case=i,
                                                 age=graph_data[age],
                                                 sex=graph_data[gender],
-                                                enrollment=graph_data[enrollment]))
+                                                enrollment=graph_data[enrollment],
+                                                enrollment_before_baseline=int(float(graph_data[enrollment_before_baseline])),
+                                                enrollment_to_followup=int(float(graph_data[enrollment_to_followup])),
+                                                followup_years=int(float(graph_data[followup_years])),
+                                                intake_date=graph_data[intake_date]))
                 db.session.commit()  # commit each case separately
-                print('Committed case #{} (stored with name {}).'.format(i+1, i))
+                print('Committed case #{} (stored with name {}).'.format(i + 1, i))
 
 
-def parse_csv_for_graph_data(fp, age, gender, enrollment):
+def parse_csv_for_graph_data(fp, age, gender, enrollment, intake_date, followup_years,
+                             enrollment_to_followup, enrollment_before_baseline):
     """
     Add only data models (these used to be the last to load, and so error prone).
 
+    :param intake_date:
+    :param followup_years:
+    :param enrollment_to_followup:
     :param fp:
     :param age:
     :param gender:
@@ -160,8 +147,6 @@ def parse_csv_for_graph_data(fp, age, gender, enrollment):
                 for j, value in enumerate(line):
                     if value.lower() in [age, gender, enrollment]:
                         mapping[j] = value.lower()
-            elif i == 1:
-                continue
             else:
                 for j, value in enumerate(line):
                     if j not in mapping:
@@ -176,8 +161,25 @@ def parse_csv_for_graph_data(fp, age, gender, enrollment):
                 db.session.add(models.DataModel(case=i,
                                                 age=graph_data[age],
                                                 sex=graph_data[gender],
-                                                enrollment=graph_data[enrollment]))
+                                                enrollment=graph_data[enrollment],
+                                                enrollment_before_baseline=graph_data[enrollment_before_baseline],
+                                                enrollment_to_followup=graph_data[enrollment_to_followup],
+                                                followup_years=graph_data[followup_years],
+                                                intake_date=graph_data[intake_date]),
+                               )
     db.session.commit()
+
+
+def unpack_categories(categorization_csv):
+    global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION
+    with open(categorization_csv, newline='') as fh:
+        reader = csv.reader(fh)
+        for i, lst in enumerate(reader):
+            if i == 0:  # skip header
+                continue
+            variable, category, description = lst
+            COLUMN_TO_CATEGORY[variable.lower()] = category
+            COLUMN_TO_DESCRIPTION[variable.lower()] = description
 
 
 def main():
@@ -196,17 +198,34 @@ def main():
     parser.add_argument('--gender', required=True, type=str.lower,
                         help='Variable for gender (for graphing).')
     parser.add_argument('--enrollment', required=True, type=str.lower,
-                        help='Variable for enrollment (for graphing).')
+                        help='Variable for enrollment status (for graphing).')
+    parser.add_argument('--enrollment-before-baseline', required=True, type=str.lower,
+                        help='Variable for enrollment years before baseline date (for graphing).')
+    parser.add_argument('--enrollment-to-followup', required=True, type=str.lower,
+                        help='Variable for enrollment years until last followup date (for graphing).')
+    parser.add_argument('--followup-years', required=True, type=str.lower,
+                        help='Variable for years of presence in cohort (for graphing).')
+    parser.add_argument('--intake-date', required=True, type=str.lower,
+                        help='Variable for date when subject was added to cohort (for graphing).')
+    parser.add_argument('--categorization-csv', required=True,
+                        help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
 
     args = parser.parse_args()
+
+    unpack_categories(args.categorization_csv)
     if args.only_graph_data:
-        parse_csv_for_graph_data(args.csv_file, args.age, args.gender, args.enrollment)
+        parse_csv_for_graph_data(args.csv_file, args.age, args.gender, args.enrollment,
+                                 args.intake_date, args.followup_years, args.enrollment_to_followup,
+                                 args.enrollment_before_baseline
+                                 )
     else:
-        parse_csv(args.csv_file, args.age, args.gender, args.enrollment)
+        parse_csv(args.csv_file, args.age, args.gender, args.enrollment,
+                                 args.intake_date, args.followup_years, args.enrollment_to_followup,
+                                 args.enrollment_before_baseline)
 
 
 if __name__ == '__main__':

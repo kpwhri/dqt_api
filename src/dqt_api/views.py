@@ -385,12 +385,16 @@ def add_all_categories():
                     if prev:
                         rsteps.append(el - prev)
                     prev = el
-                rstep = min(rsteps)
+                try:
+                    rstep = min(rsteps)  # skip if not items
+                except ValueError as e:
+                    print(e, category.name, item.name)
+                    continue
                 try:
                     ranges = [get_min_in_range(ranges, rstep), get_max_in_range(ranges, rstep), rstep]
                 except Exception as e:
-                    print(e)
-                    pass
+                    print(e, category.name, item.name, rsteps)
+                    continue
 
             # record data
             res['items'].append({
