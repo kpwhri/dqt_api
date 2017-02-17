@@ -197,30 +197,16 @@ def api_filter_chart():
                               mask=mask_value)
         })
 
-    intake_dates = [x[0] for x in db.session.query(models.DataModel.intake_date).all()]
-    intake_date_data = {'labels': list(range(min(intake_dates), max(intake_dates) + 1, 1)),
-                        'datasets': []}
-    for label, age_df in df[['sex', 'intake_date']].groupby(['sex']):
-        intake_date_data['datasets'].append({
-            'label': str(label),
-            'data': histogram(age_df['intake_date'], min(intake_dates), max(intake_dates)+1, step=1,
-                              group_extra_in_top_bin=True,
-                              mask=mask_value)
-        })
-
-    enroll_data = {
-        'labels': [],
-        'datasets': [{'data': []}]
-    }
+    enroll_data = []
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        enroll_data['labels'].append(label)
         cnt = int(cnt)
-        if cnt <= mask_value:
-            cnt = 0
-        enroll_data['datasets'][0]['data'].append(cnt)
+        if cnt > mask_value:
+            enroll_data.append({'header': label, 'value': cnt})
+        else:
+            enroll_data.append({'header': label, 'value': cnt})
 
-    if len(df.index) > mask_value and not no_results_flag:
-        selected_subjects = len(df.index)
+    selected_subjects = len(df.index)
+    if selected_subjects > mask_value and not no_results_flag:
         enrollment_before_baseline = round(df['enrollment_before_baseline'].mean(), 2)
         enrollment_to_followup = round(df['enrollment_to_followup'].mean(), 2)
         followup_years = round(df['followup_years'].mean(), 2)
@@ -233,15 +219,13 @@ def api_filter_chart():
     # ensure that masking has been done on all following values
     return jsonify({
         'age': sex_data,
-        'enrollment': enroll_data,
         'subject_counts': [
             {'header': 'Population', 'value': POPULATION_SIZE},
-            {'header': 'Selected', 'value': selected_subjects},
+            {'header': 'Current Selection', 'value': selected_subjects},
             {'header': 'Enrollment before Baseline (mean years)', 'value': enrollment_before_baseline},
             {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
             {'header': 'Follow-up (mean years)', 'value': followup_years},
-        ],
-        'intake_date': intake_date_data,
+        ] + enroll_data,
     })
 
 
