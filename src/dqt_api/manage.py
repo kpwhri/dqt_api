@@ -18,9 +18,9 @@ def main():
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
-    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete'), default='manage',
+    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete', 'overload'), default='manage',
                         help='Operation to perform.')
-    parser.add_argument('--count', default=None, type=int,
+    parser.add_argument('--count', nargs='*', type=int,
                         help='When loading, specifying number of samples to be generated.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
@@ -35,9 +35,11 @@ def main():
     elif args.method == 'create':
         create()
     elif args.method == 'load':
-        load(args.count)
+        load(args.count[0])
     elif args.method == 'delete':
         delete()
+    elif args.method == 'overload':
+        overload(*args.count)
 
 
 def manage():
@@ -57,6 +59,59 @@ def create():
     db.create_all()
     alembic = Alembic()
     alembic.init_app(app)
+
+
+def _random_name(mn=2, mx=8, add_possibles=''):
+    return ''.join([random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ' + add_possibles) for _ in range(random.randrange(mn, mx))]).capitalize()
+
+
+def overload(category_count, item_count, subject_count=None):
+    """Overload categories or items to help better optimize."""
+    items = {}
+    for _ in range(category_count):
+        c = models.Category(name=_random_name())
+        db.session.add(c)
+        db.session.commit()
+        for _ in range(item_count):
+            i = models.Item(name=_random_name(),
+                            description=_random_name(10, 30, add_possibles=' '),
+                            category=c.id)
+            db.session.add(i)
+            db.session.commit()
+            values = []
+            value_type = random.choice(['float', 'int', 'categorical'])
+            if value_type == 'float':
+                for _ in range(20):
+                    v = models.Value(name=str(random.random()))
+                    db.session.add(v)
+                    values.append(v.id)
+            elif value_type == 'int':
+                interval = random.randint(1, 11)
+                max_value = random.randint(5, 11) * interval
+                for _ in range(20):
+                    v = models.Value(name=str(random.randrange(0, max_value, interval)))
+                    db.session.add(v)
+                    values.append(v.id)
+            else:
+                for _ in range(random.randint(2, 8)):
+                    v = models.Value(name=_random_name(mn=4, mx=10))
+                    db.session.add(v)
+                    values.append(v.id)
+            db.session.commit()
+            items[i.id] = values
+    db.session.commit()
+
+    if subject_count:  # add subjects if not loaded yet
+        load(subject_count)
+
+    # update subjects
+    for subject_id in db.session.query(models.DataModel.case).all():
+        subject_id = subject_id[0]
+        for item in items:
+            v = models.Variable(case=subject_id, item=item, value=random.choice(items[item]))
+            db.session.add(v)
+        db.session.commit()
+        print('Completed subject: {}'.format(subject_id))
 
 
 def load(count):
