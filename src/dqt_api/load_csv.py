@@ -15,6 +15,7 @@ from dqt_api.__main__ import prepare_config
 # mapping of csv columns to category names
 COLUMN_TO_CATEGORY = {}
 COLUMN_TO_DESCRIPTION = {}
+COLUMN_TO_LABEL = {}  # column name to "label" (the visible piece)
 
 CATEGORIES = {}  # name -> models.Category
 
@@ -47,14 +48,21 @@ def add_items(items):
     :param items: label to display for each item
     :return:
     """
+    res = []
     for item in items:
-        if item in COLUMN_TO_CATEGORY:
+        if item in COLUMN_TO_LABEL:
+            item = COLUMN_TO_LABEL[item]
+            res.append(item)
             i = models.Item(name=item,
                             description=COLUMN_TO_DESCRIPTION[item],
                             category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
             ITEMS[item] = i
             db.session.add(i)
+        else:
+            res.append(None)
+
     db.session.commit()
+    return res
 
 
 def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollment_to_followup,
@@ -73,15 +81,14 @@ def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollme
         reader = csv.reader(fh)
         for i, line in enumerate(reader):
             if i == 0:
-                items = [x.lower() for x in line]
-                add_items(items)
+                items = add_items([x.lower() for x in line])
             else:
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
                         continue
-                    if items[j] not in COLUMN_TO_CATEGORY:
-                        print('Missing: {}'.format(value.strip()))
+                    if not items[j]:
+                        print('Missing column {}: {}'.format(j, value.strip()))
                         continue
                     # convert date to year
                     if re.match('\d{2}\w{3}\d{4}', value):
@@ -116,70 +123,29 @@ def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollme
                                                 age=graph_data[age],
                                                 sex=graph_data[gender],
                                                 enrollment=graph_data[enrollment],
-                                                enrollment_before_baseline=int(float(graph_data[enrollment_before_baseline])),
+                                                enrollment_before_baseline=int(
+                                                    float(graph_data[enrollment_before_baseline])),
                                                 enrollment_to_followup=int(float(graph_data[enrollment_to_followup])),
                                                 followup_years=int(float(graph_data[followup_years])),
-                                                intake_date=graph_data[intake_date]))
+                                                intake_date=2000))  # placeholder
                 db.session.commit()  # commit each case separately
                 print('Committed case #{} (stored with name {}).'.format(i + 1, i))
 
 
-def parse_csv_for_graph_data(fp, age, gender, enrollment, intake_date, followup_years,
-                             enrollment_to_followup, enrollment_before_baseline):
-    """
-    Add only data models (these used to be the last to load, and so error prone).
-
-    :param intake_date:
-    :param followup_years:
-    :param enrollment_to_followup:
-    :param fp:
-    :param age:
-    :param gender:
-    :param enrollment:
-    :return:
-    """
-    mapping = {}
-    with open(fp, newline='') as fh:
-        reader = csv.reader(fh)
-        for i, line in enumerate(reader):
-            graph_data = defaultdict(lambda: None)  # separate summary data table
-            if i == 0:
-                for j, value in enumerate(line):
-                    if value.lower() in [age, gender, enrollment]:
-                        mapping[j] = value.lower()
-            else:
-                for j, value in enumerate(line):
-                    if j not in mapping:
-                        continue
-                    if not value.strip():  # empty/missing value: exclude
-                        continue
-                    # convert date to year
-                    if mapping[j] == age:
-                        value = str(int_round(value))
-
-                    graph_data[mapping[j]] = value
-                db.session.add(models.DataModel(case=i,
-                                                age=graph_data[age],
-                                                sex=graph_data[gender],
-                                                enrollment=graph_data[enrollment],
-                                                enrollment_before_baseline=graph_data[enrollment_before_baseline],
-                                                enrollment_to_followup=graph_data[enrollment_to_followup],
-                                                followup_years=graph_data[followup_years],
-                                                intake_date=graph_data[intake_date]),
-                               )
-    db.session.commit()
-
-
-def unpack_categories(categorization_csv):
-    global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION
+def unpack_categories(categorization_csv, min_priority):
+    global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
     with open(categorization_csv, newline='') as fh:
         reader = csv.reader(fh)
         for i, lst in enumerate(reader):
             if i == 0:  # skip header
                 continue
-            variable, category, description = lst
-            COLUMN_TO_CATEGORY[variable.lower()] = category
-            COLUMN_TO_DESCRIPTION[variable.lower()] = description
+            category, description, name, label, priority = lst
+            if not priority:
+                priority = 0
+            if int(priority) >= min_priority:
+                COLUMN_TO_CATEGORY[label.lower()] = category
+                COLUMN_TO_DESCRIPTION[label.lower()] = description
+                COLUMN_TO_LABEL[name.lower()] = label.lower()
 
 
 def main():
@@ -209,6 +175,9 @@ def main():
                         help='Variable for date when subject was added to cohort (for graphing).')
     parser.add_argument('--categorization-csv', required=True,
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
+    parser.add_argument('--minimum-priority', type=int, default=0,
+                        help='Minimum priority to allow for variable prioritization. Allow all = 0.')
+
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
@@ -216,16 +185,13 @@ def main():
 
     args = parser.parse_args()
 
-    unpack_categories(args.categorization_csv)
+    unpack_categories(args.categorization_csv, args.minimum_priority)
     if args.only_graph_data:
-        parse_csv_for_graph_data(args.csv_file, args.age, args.gender, args.enrollment,
-                                 args.intake_date, args.followup_years, args.enrollment_to_followup,
-                                 args.enrollment_before_baseline
-                                 )
+        raise ValueError('Operation no longer supported.')
     else:
         parse_csv(args.csv_file, args.age, args.gender, args.enrollment,
-                                 args.intake_date, args.followup_years, args.enrollment_to_followup,
-                                 args.enrollment_before_baseline)
+                  args.intake_date, args.followup_years, args.enrollment_to_followup,
+                  args.enrollment_before_baseline)
 
 
 if __name__ == '__main__':
