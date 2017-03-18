@@ -221,12 +221,13 @@ def api_filter_chart():
     return jsonify({
         'age': sex_data,
         'subject_counts': [
-            {'header': 'Population', 'value': POPULATION_SIZE},
-            {'header': 'Current Selection', 'value': selected_subjects},
-            {'header': 'Enrollment before Baseline (mean years)', 'value': enrollment_before_baseline},
-            {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
-            {'header': 'Follow-up (mean years)', 'value': followup_years},
-        ] + enroll_data,
+                              {'header': 'Population', 'value': POPULATION_SIZE},
+                              {'header': 'Current Selection', 'value': selected_subjects},
+                              {'header': 'Enrollment before Baseline (mean years)',
+                               'value': enrollment_before_baseline},
+                              {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
+                              {'header': 'Follow-up (mean years)', 'value': followup_years},
+                          ] + enroll_data,
     })
 
 
@@ -475,3 +476,23 @@ def get_ip_address():
     else:
         remote_addr = request.remote_addr or 'untrackable'
     return str(remote_addr)
+
+
+@app.route('/api/tabs', methods=['GET'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
+def get_tabs():
+    """Get headers and content for each page"""
+    res = []
+    curr = None
+    for tab in db.session.query(models.TabData).order_by(models.TabData.header, models.TabData.line):
+        if tab.line == 0:
+            if curr:
+                res.append(curr)
+            curr = {
+                'header': tab.header,
+                'lines': [{'type': tab.text_type, 'text': tab.text}]
+            }
+        else:
+            curr['lines'].append({'type': tab.text_type, 'text': tab.text})
+    res.append(curr)  # fencepost
+    return jsonify({'tabs': res})

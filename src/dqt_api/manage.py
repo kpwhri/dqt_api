@@ -8,7 +8,7 @@ from flask_alembic import Alembic
 from flask_script import Manager
 from flask_migrate import Migrate
 from flask_alembic.cli.script import manager as alembic_manager
-from dqt_api import db, app
+from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
@@ -18,7 +18,8 @@ def main():
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
-    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete', 'overload'), default='manage',
+    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete', 'overload', 'reindex'),
+                        default='manage',
                         help='Operation to perform.')
     parser.add_argument('--count', nargs='*', type=int,
                         help='When loading, specifying number of samples to be generated.')
@@ -28,6 +29,7 @@ def main():
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
+    whooshee.init_app(app)
     sys.argv = sys.argv[:1] + unk  # only use commands that have not yet been used
 
     if args.method == 'manage':
@@ -40,6 +42,13 @@ def main():
         delete()
     elif args.method == 'overload':
         overload(*args.count)
+    elif args.method == 'reindex':
+        reindex()
+
+
+def reindex():
+    """Reindex whooshee data"""
+    whooshee.reindex()
 
 
 def manage():
@@ -62,7 +71,8 @@ def create():
 
 
 def _random_name(mn=2, mx=8, add_possibles=''):
-    return ''.join([random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ' + add_possibles) for _ in range(random.randrange(mn, mx))]).capitalize()
+    return ''.join([random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ' + add_possibles) for _ in
+                    range(random.randrange(mn, mx))]).capitalize()
 
 
 def overload(category_count, item_count, subject_count=None):
@@ -114,6 +124,18 @@ def overload(category_count, item_count, subject_count=None):
         print('Completed subject: {}'.format(subject_id))
 
 
+def add_tabs():
+    db.session.add(models.TabData(header='FAQ', line=0, text_type='header',
+                                  text='What is the data query tool?'))
+    db.session.add(models.TabData(header='FAQ', line=1, text_type='text',
+                                  text='A really awesome tool'))
+    db.session.add(models.TabData(header='Home', line=0, text_type='bold',
+                                  text='This is the home page.'))
+    db.session.add(models.TabData(header='Contact', line=0, text_type='text',
+                                  text='Email me if you have questions.'))
+    db.session.commit()
+
+
 def load(count):
     """Load database with sample data."""
 
@@ -122,6 +144,8 @@ def load(count):
             db.session.add(el)
         if commit:
             db.session.commit()
+
+    add_tabs()
 
     c1 = models.Category(name='Demographics',
                          description='Statistical data relating to a population and its subgroups.')

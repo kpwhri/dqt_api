@@ -1,4 +1,4 @@
-from dqt_api import app, db
+from dqt_api import app, db, whooshee
 import dqt_api.models
 import dqt_api.views
 import os
@@ -64,6 +64,7 @@ def main():
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
+    whooshee.init_app(app)
     run_server(port=args.port)
 
 

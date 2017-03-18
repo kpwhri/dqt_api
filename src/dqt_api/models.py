@@ -82,3 +82,13 @@ class UserData(db.Model):
     reason_for_visiting = db.Column(db.String(200))
     ip_address = db.Column(db.String(20))
     visit_date_utc = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TabData(db.Model):
+    """Data for populating tabs.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    header = db.Column(db.String(15))
+    line = db.Column(db.SmallInteger)
+    text_type = db.Column(db.String(10))  # header, bold, text, etc. (formatting)
+    text = db.Column(db.String(500))
