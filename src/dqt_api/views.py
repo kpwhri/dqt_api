@@ -5,6 +5,7 @@ import math
 from itertools import zip_longest
 
 import pandas as pd
+import sqlalchemy
 from flask import request, jsonify
 from flask_cors import cross_origin
 from sqlalchemy import inspect
@@ -38,26 +39,33 @@ def search():
         return 'Invalid search: must contain at least 3 characters.'
     terms = []
     # search category
-    for c in models.Category.query.whooshee_search(target, order_by_relevance=-1):
-        terms.append({
-            'type': 'category',
-            'id': c.id,
-            'name': c.name,
-            'description': c.description,
-            'categoryId': c.id,
-            'itemId': None,
-        })
+    try:
+        for c in models.Category.query.whooshee_search(target, order_by_relevance=-1):
+            terms.append({
+                'type': 'category',
+                'id': c.id,
+                'name': c.name,
+                'description': c.description,
+                'categoryId': c.id,
+                'itemId': None,
+            })
+    except sqlalchemy.exc.ProgrammingError:
+        print('No categories')
+        pass
     # search item
-    for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
-        terms.append({
-            'type': 'item',
-            'id': i.id,
-            'name': i.name,
-            'description': i.description,
-            'categoryId': i.category,
-            'itemId': i.id,
-        })
-
+    try:
+        for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
+            terms.append({
+                'type': 'item',
+                'id': i.id,
+                'name': i.name,
+                'description': i.description,
+                'categoryId': i.category,
+                'itemId': i.id,
+            })
+    except sqlalchemy.exc.ProgrammingError:
+        print('No items')
+        pass
     # search value (need to get a category for this!)
     # for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
     #     terms.append({

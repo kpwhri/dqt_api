@@ -29,7 +29,6 @@ def main():
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
-    whooshee.init_app(app)
     sys.argv = sys.argv[:1] + unk  # only use commands that have not yet been used
 
     if args.method == 'manage':

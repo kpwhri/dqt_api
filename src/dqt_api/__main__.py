@@ -1,4 +1,4 @@
-from dqt_api import app, db, whooshee
+from dqt_api import app
 import dqt_api.models
 import dqt_api.views
 import os
@@ -17,8 +17,8 @@ def prepare_config(debug=False):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
-    app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whoosh.idx'))
-    app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+    # app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+    # app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
     app.config['ALEMBIC'] = {
         'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
         'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
@@ -64,7 +64,6 @@ def main():
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
-    whooshee.init_app(app)
     run_server(port=args.port)
 
 
