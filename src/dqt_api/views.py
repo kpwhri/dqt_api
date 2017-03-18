@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict, Counter
 
 import math
@@ -5,7 +6,7 @@ from itertools import zip_longest
 
 import pandas as pd
 from flask import request, jsonify
-from flask.ext.cors import cross_origin
+from flask_cors import cross_origin
 from sqlalchemy import inspect
 
 from dqt_api import db, app, models
@@ -26,7 +27,7 @@ def index():
 
 
 @app.route('/api/search', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def search():
     """Search target should use these conventions:
         space: +
@@ -150,7 +151,7 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
 
 
 @app.route('/api/filter/export', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def api_filter_export():
     filters = []
     for key, [val, *_] in request.args.lists():
@@ -171,7 +172,7 @@ def api_filter_export():
 
 
 @app.route('/api/filter/chart', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def api_filter_chart():
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
@@ -258,7 +259,7 @@ def iterchain2(*args, depth=2):
 
 
 @app.route('/api/category/add/<int:category_id>', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_category(category_id):
     """Get information about a particular category.
 
@@ -320,7 +321,7 @@ def chunker(iterable, chunk_size, fillvalue=None):
 
 
 @app.route('/api/category/all', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_all_categories():
     """Get information about a particular category.
 
@@ -417,7 +418,7 @@ def get_max_in_range(ranges, rstep):
 
 
 @app.route('/api/item/add/<int:item_id>', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_category_from_item(item_id):
     """Get category from item
 
@@ -426,10 +427,50 @@ def add_category_from_item(item_id):
 
 
 @app.route('/api/value/add/<int:value_id>', methods=['GET'])
-@cross_origin(origin='localhost', headers=['Content-Type', 'Authorization'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_categories_from_value(value_id):
     """Get category from item
 
     """
     val = models.Value.query.filter_by(id=value_id).first()
     return add_category_from_item(models.Variable.query.filter_by(value=val.id).first().item)
+
+
+@app.route('/api/user/check', methods=['GET'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
+def check_user_ip():
+    remote_addr = get_ip_address()
+    if remote_addr and remote_addr != 'untrackable':
+        d = models.UserData.query.filter_by(ip_address=remote_addr).first()
+        if d:
+            db.session.add(models.UserData(ip_address=remote_addr))
+            db.session.commit()
+            return jsonify({'returnVisitor': True})
+    return jsonify({'returnVisitor': False})
+
+
+@app.route('/api/user/submit', methods=['POST'])
+@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
+def submit_user_form():
+    """Collect user-submitted information about reason for visit.
+    """
+    d = models.UserData(name=request.json['name'],
+                        email_address=request.json['emailAddress'],
+                        reason_for_visiting=request.json['reasonForVisiting'],
+                        ip_address=get_ip_address()
+                        )
+    db.session.add(d)
+    db.session.commit()
+    return jsonify({
+        'id': str(os.urandom(16)),  # this should be a token in SSL
+        'validUser': True
+    })
+
+
+def get_ip_address():
+    """Code borrowed from flask_security"""
+    if 'X-Forwarded-For' in request.headers:
+        remote_addr = request.headers.getlist("X-Forwarded-For")[0].rpartition(' ')[-1]
+    else:
+        remote_addr = request.remote_addr or 'untrackable'
+    return str(remote_addr)

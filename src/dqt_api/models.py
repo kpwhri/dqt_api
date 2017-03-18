@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from dqt_api import db, whooshee
 
 
@@ -56,15 +58,6 @@ class Value(db.Model):
         self.description = description
 
 
-class ItemValue(db.Model):
-    """The set of values that are associated with each item.
-    """
-    id = db.Column(db.Integer, primary_key=True)
-    item = db.Column(db.Integer, db.ForeignKey('item.id'))
-    value = db.Column(db.Integer, db.ForeignKey('value.id'))
-    range_max = db.Column(db.Boolean)  # true: max of range; false: min of range; null: categorical relationship
-
-
 class DataModel(db.Model):
     """Data table for graphing/other tables.
     This table must be modified to extract additional information for graphs/tables
@@ -77,3 +70,14 @@ class DataModel(db.Model):
     enrollment_to_followup = db.Column(db.Integer)
     followup_years = db.Column(db.Integer)
     intake_date = db.Column(db.Integer)
+
+
+class UserData(db.Model):
+    """Table for collecting information for the users.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50))
+    email_address = db.Column(db.String(100))
+    reason_for_visiting = db.Column(db.String(200))
+    ip_address = db.Column(db.String(20))
+    visit_date_utc = db.Column(db.DateTime, default=datetime.utcnow)
