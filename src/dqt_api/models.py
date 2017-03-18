@@ -78,6 +78,7 @@ class UserData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     email_address = db.Column(db.String(100))
+    affiliation = db.Column(db.String(50))
     reason_for_visiting = db.Column(db.String(200))
     ip_address = db.Column(db.String(20))
     visit_date_utc = db.Column(db.DateTime, default=datetime.utcnow)

@@ -456,6 +456,7 @@ def submit_user_form():
     """
     d = models.UserData(name=request.json['name'],
                         email_address=request.json['emailAddress'],
+                        affiliation=request.json['affiliation'],
                         reason_for_visiting=request.json['reasonForVisiting'],
                         ip_address=get_ip_address()
                         )
