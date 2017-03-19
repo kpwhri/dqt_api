@@ -28,7 +28,6 @@ def index():
 
 
 @app.route('/api/search', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def search():
     """Search target should use these conventions:
         space: +
@@ -159,7 +158,6 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
 
 
 @app.route('/api/filter/export', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def api_filter_export():
     filters = []
     for key, [val, *_] in request.args.lists():
@@ -180,7 +178,6 @@ def api_filter_export():
 
 
 @app.route('/api/filter/chart', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def api_filter_chart():
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
@@ -268,7 +265,6 @@ def iterchain2(*args, depth=2):
 
 
 @app.route('/api/category/add/<int:category_id>', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_category(category_id):
     """Get information about a particular category.
 
@@ -330,7 +326,6 @@ def chunker(iterable, chunk_size, fillvalue=None):
 
 
 @app.route('/api/category/all', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_all_categories():
     """Get information about a particular category.
 
@@ -427,7 +422,6 @@ def get_max_in_range(ranges, rstep):
 
 
 @app.route('/api/item/add/<int:item_id>', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_category_from_item(item_id):
     """Get category from item
 
@@ -436,7 +430,6 @@ def add_category_from_item(item_id):
 
 
 @app.route('/api/value/add/<int:value_id>', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def add_categories_from_value(value_id):
     """Get category from item
 
@@ -446,7 +439,6 @@ def add_categories_from_value(value_id):
 
 
 @app.route('/api/user/check', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def check_user_ip():
     remote_addr = get_ip_address()
     if remote_addr and remote_addr != 'untrackable':
@@ -459,7 +451,6 @@ def check_user_ip():
 
 
 @app.route('/api/user/submit', methods=['POST'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def submit_user_form():
     """Collect user-submitted information about reason for visit.
     """
@@ -487,7 +478,6 @@ def get_ip_address():
 
 
 @app.route('/api/tabs', methods=['GET'])
-@cross_origin(origin='*', headers=['Content-Type', 'Authorization'])
 def get_tabs():
     """Get headers and content for each page"""
     res = []

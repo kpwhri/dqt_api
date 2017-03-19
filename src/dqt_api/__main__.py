@@ -1,4 +1,4 @@
-from dqt_api import app
+from dqt_api import app, cors
 import dqt_api.models
 import dqt_api.views
 import os
@@ -64,6 +64,7 @@ def main():
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
+    cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
     run_server(port=args.port)
 
 
