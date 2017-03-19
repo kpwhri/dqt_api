@@ -1,3 +1,7 @@
+from tornado.httpserver import HTTPServer
+from tornado.ioloop import IOLoop
+from tornado.wsgi import WSGIContainer
+
 from dqt_api import app, cors
 import dqt_api.models
 import dqt_api.views
@@ -33,7 +37,7 @@ def prepare_config(debug=False):
     app.logger.addHandler(handler)
 
 
-def run_server(port=8090):
+def run_cherrypy_server(port=8090):
     app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
     cherrypy.tree.graft(app_logged, '/')
     cherrypy.tree.mount(None, '/static', config={})
@@ -51,7 +55,19 @@ def run_server(port=8090):
     cherrypy.engine.block()
 
 
+def run_tornado_server(port=8090):
+    """
+    TODO: enable logging
+    :param port:
+    :return:
+    """
+    server = HTTPServer(WSGIContainer(app))
+    server.listen(port)
+    IOLoop.instance().start()
+
+
 def main():
+    server_choices = ['cherrypy', 'tornado']
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--port', default=8090, type=int,
                         help='Specify port to run file on.')
@@ -60,12 +76,17 @@ def main():
                              'BASE_DIR, SECRET_KEY, AGE_STEP, AGE_MAX, AGE_MIN, MASK.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
+    parser.add_argument('--server', choices=server_choices, default=server_choices[0],
+                        help='Select server to run.')
     args = parser.parse_args()
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
-    run_server(port=args.port)
+    if args.server == 'cherrypy':
+        run_cherrypy_server(port=args.port)
+    elif args.server == 'tornado':
+        run_tornado_server(port=args.port)
 
 
 if __name__ == '__main__':
