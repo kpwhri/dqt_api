@@ -45,17 +45,19 @@ class Value(db.Model):
     __searchable__ = ['name', 'description']
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50))
+    name = db.Column(db.String(100))  # this feels too long
     name_numeric = db.Column(db.Float)
     description = db.Column(db.String(500))
+    order = db.Column(db.SmallInteger)
 
-    def __init__(self, name, description=None):
+    def __init__(self, name, description=None, order=None):
         try:
             self.name_numeric = float(name)
         except ValueError:
             self.name_numeric = None
         self.name = name
         self.description = description
+        self.order = order
 
 
 class DataModel(db.Model):
@@ -66,8 +68,6 @@ class DataModel(db.Model):
     age = db.Column(db.Integer)
     sex = db.Column(db.String(10))
     enrollment = db.Column(db.String(15))
-    enrollment_before_baseline = db.Column(db.Integer)
-    enrollment_to_followup = db.Column(db.Integer)
     followup_years = db.Column(db.Integer)
     intake_date = db.Column(db.Integer)
 

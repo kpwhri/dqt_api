@@ -213,13 +213,9 @@ def api_filter_chart():
 
     selected_subjects = len(df.index)
     if selected_subjects > mask_value and not no_results_flag:
-        enrollment_before_baseline = round(df['enrollment_before_baseline'].mean(), 2)
-        enrollment_to_followup = round(df['enrollment_to_followup'].mean(), 2)
         followup_years = round(df['followup_years'].mean(), 2)
     else:
         selected_subjects = 0
-        enrollment_before_baseline = 0
-        enrollment_to_followup = 0
         followup_years = 0
 
     # ensure that masking has been done on all following values
@@ -228,9 +224,6 @@ def api_filter_chart():
         'subject_counts': [
                               {'header': 'Population', 'value': POPULATION_SIZE},
                               {'header': 'Current Selection', 'value': selected_subjects},
-                              {'header': 'Enrollment before Baseline (mean years)',
-                               'value': enrollment_before_baseline},
-                              {'header': 'Enrollment to Followup (mean years)', 'value': enrollment_to_followup},
                               {'header': 'Follow-up (mean years)', 'value': followup_years},
                           ] + enroll_data,
     })

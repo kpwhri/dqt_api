@@ -8,11 +8,13 @@ import csv
 import re
 from collections import defaultdict
 
+from datetime import datetime
+
 from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
-# mapping of csv columns to category names
+# mapping of csv columns ("name"( to category labels
 COLUMN_TO_CATEGORY = {}
 COLUMN_TO_DESCRIPTION = {}
 COLUMN_TO_LABEL = {}  # column name to "label" (the visible piece)
@@ -20,6 +22,7 @@ COLUMN_TO_LABEL = {}  # column name to "label" (the visible piece)
 CATEGORIES = {}  # name -> models.Category
 
 VALUES = {}  # name -> models.Value
+VALUES_BY_ITEM = defaultdict(dict)
 
 ITEMS = {}  # name -> models.Item
 
@@ -42,7 +45,7 @@ def add_categories():
     db.session.commit()
 
 
-def add_items(items):
+def add_items(items, datamodel_vars):
     """
     Add items to database along with their descriptions, and commit.
     :param items: label to display for each item
@@ -51,24 +54,31 @@ def add_items(items):
     res = []
     for item in items:
         if item in COLUMN_TO_LABEL:
-            item = COLUMN_TO_LABEL[item]
+            # item = COLUMN_TO_LABEL[item]
             res.append(item)
-            i = models.Item(name=item,
-                            description=COLUMN_TO_DESCRIPTION[item],
-                            category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
-            ITEMS[item] = i
-            db.session.add(i)
+            if item not in ITEMS:
+                i = models.Item(name=item,
+                                description=COLUMN_TO_DESCRIPTION[item],
+                                category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
+                ITEMS[item] = i
+                db.session.add(i)
+        elif item in datamodel_vars:
+            res.append(datamodel_vars[item])
         else:
+            print('Missing column: {}.'.format(item))
             res.append(None)
 
     db.session.commit()
     return res
 
 
-def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollment_to_followup,
-              enrollment_before_baseline):
+def parse_csv(fp, datamodel_vars,
+              items_from_data_dictionary_only):
     """
     Load csv file into database, committing after each case.
+    :param intake_date:
+    :param followup_years:
+    :param items_from_data_dictionary_only:
     :param fp:
     :param age: column name for age variable (for graphing)
     :param gender: column name for gender variable (for graphing)
@@ -76,58 +86,67 @@ def parse_csv(fp, age, gender, enrollment, intake_date, followup_years, enrollme
     :return:
     """
     items = []
-    add_categories()
+    curr_year = int(str(datetime.now().year)[-2:])
+    if not CATEGORIES:
+        add_categories()
     with open(fp, newline='') as fh:
         reader = csv.reader(fh)
         for i, line in enumerate(reader):
             if i == 0:
-                items = add_items([x.lower() for x in line])
+                items = add_items([x.lower() for x in line], datamodel_vars)
             else:
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
                         continue
                     if not items[j]:
-                        print('Missing column {}: {}'.format(j, value.strip()))
+                        print('Missing column #{}: {} ({})'.format(j, items[j], value.strip()))
                         continue
+
+                    # pre-processing values
                     # convert date to year
-                    if re.match('\d{2}\w{3}\d{4}', value):
+                    if re.match('(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
                         value = str(int_round(value[-4:]))
-                    elif re.match('\d{2}\w{3}\d{2}', value):
+                    elif re.match('(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
                         value = int_round(value[-2:])
-                        if value < 20:
+                        if value <= curr_year:
                             value = '20{}'.format(value)
                         else:
                             value = '19{}'.format(value)
                     elif 'age' in items[j] or 'year' in items[j]:
                         value = str(int_round(value))
 
-                    # add value if it doesn't exist
-                    if value not in VALUES:
-                        val = models.Value(name=value)
-                        VALUES[value] = val
-                        db.session.add(val)
-                    new_value = VALUES[value]
+                    # data model variables
+                    if items[j] in datamodel_vars:  # name appears == wanted
+                        graph_data[datamodel_vars[items[j]]] = value  # get datamodel var name
+                    elif items[j] in datamodel_vars.values():  # name not requested
+                        graph_data[items[j]] = value
+                        continue  # not included in actual dataset
+
+                    # get the Value model itself
+                    if items[j] in VALUES_BY_ITEM:
+                        new_value = VALUES_BY_ITEM[items[j]][int(value)]
+                    elif items_from_data_dictionary_only:
+                        continue  # skip if user only wants values from data dictionary
+                    else:  # add value if it doesn't exist
+                        if value not in VALUES:
+                            val = models.Value(name=value)
+                            VALUES[value] = val
+                            db.session.add(val)
+                        new_value = VALUES[value]
 
                     # add variable with item and value
                     var = models.Variable(case=i,
                                           item=ITEMS[items[j]].id,
                                           value=new_value.id)
                     db.session.add(var)
-
-                    if items[j] in [age, gender, enrollment, enrollment_before_baseline,
-                                    enrollment_to_followup, followup_years, intake_date]:
-                        graph_data[items[j]] = value
-
+                print(graph_data)
                 db.session.add(models.DataModel(case=i,
-                                                age=graph_data[age],
-                                                sex=graph_data[gender],
-                                                enrollment=graph_data[enrollment],
-                                                enrollment_before_baseline=int(
-                                                    float(graph_data[enrollment_before_baseline])),
-                                                enrollment_to_followup=int(float(graph_data[enrollment_to_followup])),
-                                                followup_years=int(float(graph_data[followup_years])),
-                                                intake_date=2000))  # placeholder
+                                                age=graph_data['age'],
+                                                sex=graph_data['gender'],
+                                                enrollment=graph_data['enrollment'],
+                                                followup_years=int_round(graph_data['followup_years'], 1),
+                                                intake_date=graph_data['intake_date']))  # placeholder
                 db.session.commit()  # commit each case separately
                 print('Committed case #{} (stored with name {}).'.format(i + 1, i))
 
@@ -136,16 +155,46 @@ def unpack_categories(categorization_csv, min_priority):
     global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
     with open(categorization_csv, newline='') as fh:
         reader = csv.reader(fh)
+        header = None
         for i, lst in enumerate(reader):
             if i == 0:  # skip header
+                header = [x.lower() if x else '' for x in lst]
                 continue
-            category, description, name, label, priority = lst
-            if not priority:
+            category, description, name, label, *extra = lst
+            if 'priority' in header:
+                priority = extra[header.index('priority') - 4]
+            else:
                 priority = 0
             if int(priority) >= min_priority:
-                COLUMN_TO_CATEGORY[label.lower()] = category
-                COLUMN_TO_DESCRIPTION[label.lower()] = description
+                COLUMN_TO_CATEGORY[name.lower()] = category
+                if category in CATEGORIES:
+                    category_instance = CATEGORIES[category]
+                else:  # not yet added
+                    category_instance = models.Category(name=category)
+                    db.session.add(category_instance)
+                    CATEGORIES[category] = category_instance
+                COLUMN_TO_DESCRIPTION[name.lower()] = description
                 COLUMN_TO_LABEL[name.lower()] = label.lower()
+                if 'categories' in header:  # these categories are really ITEMS
+                    categories = extra[header.index('categories') - 4].strip()
+                    if categories[0] in '0123456789':
+                        i = models.Item(name=label,
+                                        description=description,
+                                        category=category_instance.id)
+                        for cat in categories.split('\n'):
+                            order, value = re.split(r'\W+', cat, maxsplit=1)
+                            order = int(order)
+                            v = models.Value(name=value, order=order)
+                            db.session.add(v)
+                            VALUES_BY_ITEM[name][order] = v
+                    else:
+                        i = models.Item(name=label,
+                                        description=description,
+                                        category=category_instance.id,
+                                        is_numeric=True)
+                    ITEMS[name] = i
+                    db.session.add(i)
+    db.session.commit()
 
 
 def main():
@@ -165,10 +214,6 @@ def main():
                         help='Variable for gender (for graphing).')
     parser.add_argument('--enrollment', required=True, type=str.lower,
                         help='Variable for enrollment status (for graphing).')
-    parser.add_argument('--enrollment-before-baseline', required=True, type=str.lower,
-                        help='Variable for enrollment years before baseline date (for graphing).')
-    parser.add_argument('--enrollment-to-followup', required=True, type=str.lower,
-                        help='Variable for enrollment years until last followup date (for graphing).')
     parser.add_argument('--followup-years', required=True, type=str.lower,
                         help='Variable for years of presence in cohort (for graphing).')
     parser.add_argument('--intake-date', required=True, type=str.lower,
@@ -177,6 +222,9 @@ def main():
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
                         help='Minimum priority to allow for variable prioritization. Allow all = 0.')
+    parser.add_argument('--items-from-data-dictionary-only', default=False,
+                        help='Only collect items from the data dictionary. '
+                             '(Values will still be collected from both.)')
 
     args, unk = parser.parse_known_args()
 
@@ -189,9 +237,14 @@ def main():
     if args.only_graph_data:
         raise ValueError('Operation no longer supported.')
     else:
-        parse_csv(args.csv_file, args.age, args.gender, args.enrollment,
-                  args.intake_date, args.followup_years, args.enrollment_to_followup,
-                  args.enrollment_before_baseline)
+        datamodel_vars = {
+            args.age: 'age',
+            args.gender: 'gender',
+            args.enrollment: 'enrollment',
+            args.intake_date: 'intake_date',
+            args.followup_years: 'followup_years'
+        }
+        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
 
 if __name__ == '__main__':
