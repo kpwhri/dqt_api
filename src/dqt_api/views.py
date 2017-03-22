@@ -209,7 +209,7 @@ def api_filter_chart():
         if cnt > mask_value:
             enroll_data.append({'header': label, 'value': cnt})
         else:
-            enroll_data.append({'header': label, 'value': cnt})
+            enroll_data.append({'header': label, 'value': 0})
 
     selected_subjects = len(df.index)
     if selected_subjects > mask_value and not no_results_flag:
