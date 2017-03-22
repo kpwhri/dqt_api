@@ -154,7 +154,8 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
     res = [dist[b] for b in range(bins)]
     if group_extra_in_top_bin:
         res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    return [r if r > mask else 0 for r in res]
+    masked = [r if r > mask else 0 for r in res]
+    return masked
 
 
 @app.route('/api/filter/export', methods=['GET'])
@@ -200,7 +201,8 @@ def api_filter_chart():
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step(df)
     # get age counts for each sex
-    age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max + age_step, age_step)]
+    age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max - age_step, age_step)]
+    age_buckets.append('{}+'.format(age_max - age_step))
     sex_data = {'labels': age_buckets,  # show age range
                 'datasets': []}
     for label, age_df in df[['sex', 'age']].groupby(['sex']):
