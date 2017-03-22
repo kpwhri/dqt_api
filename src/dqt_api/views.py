@@ -207,9 +207,9 @@ def api_filter_chart():
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         cnt = int(cnt)
         if cnt > mask_value:
-            enroll_data.append({'header': label, 'value': cnt})
+            enroll_data.append({'header': label.capitalize(), 'value': cnt})
         else:
-            enroll_data.append({'header': label, 'value': 0})
+            enroll_data.append({'header': label.capitalize(), 'value': 0})
 
     selected_subjects = len(df.index)
     if selected_subjects > mask_value and not no_results_flag:
@@ -220,7 +220,7 @@ def api_filter_chart():
 
     subject_counts = [
                          {'header': 'Population', 'value': POPULATION_SIZE},
-                         {'header': 'Current Selection', 'value': selected_subjects},
+                         {'header': 'Current selection', 'value': selected_subjects},
                          {'header': 'Follow-up (mean years)', 'value': followup_years},
                      ] + enroll_data
     return jsonify({
