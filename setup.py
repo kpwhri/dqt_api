@@ -30,5 +30,5 @@ setup(name='data_quality_tool',
       packages=setuptools.find_packages('src'),
       zip_safe=False, install_requires=['pandas', 'flask', 'sqlalchemy',
                                         'flask-sqlalchemy', 'flask-cors', 'cherrypy', 'paste',
-                                        'flask-migrate', 'flask-script', 'flask-alembic']
+                                        'flask-migrate', 'flask-script', 'flask-alembic', 'tornado']
       )
