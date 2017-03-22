@@ -213,14 +213,15 @@ def api_filter_chart():
         })
 
     enroll_data = []
+    selected_subjects = 0
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        cnt = int(cnt)
+        cnt = int(cnt) if int(cnt) > mask_value else 0
         enroll_data.append({
             'header': '{} {}'.format(label.capitalize(), get_update_date_text()),
-            'value': cnt if cnt > mask_value else 0
+            'value': cnt
         })
+        selected_subjects += cnt
 
-    selected_subjects = len(df.index)
     if selected_subjects > mask_value and not no_results_flag:
         followup_years = round(df['followup_years'].mean(), 2)
     else:
