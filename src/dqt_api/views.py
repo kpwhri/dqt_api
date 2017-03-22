@@ -177,6 +177,13 @@ def api_filter_export():
     return jsonify({'filterstring': ' AND '.join(filters)})
 
 
+def get_update_date_text():
+    update_date = app.config.get('UPDATE_DATE', None)
+    if update_date:
+        return 'as of {}'.format(update_date)
+    return ''
+
+
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart():
     # get set of cases
@@ -206,10 +213,10 @@ def api_filter_chart():
     enroll_data = []
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         cnt = int(cnt)
-        if cnt > mask_value:
-            enroll_data.append({'header': label.capitalize(), 'value': cnt})
-        else:
-            enroll_data.append({'header': label.capitalize(), 'value': 0})
+        enroll_data.append({
+            'header': '{} {}'.format(label.capitalize(), get_update_date_text()),
+            'value': cnt if cnt > mask_value else 0
+        })
 
     selected_subjects = len(df.index)
     if selected_subjects > mask_value and not no_results_flag:
@@ -219,9 +226,14 @@ def api_filter_chart():
         followup_years = 0
 
     subject_counts = [
-                         {'header': 'Population', 'value': POPULATION_SIZE},
-                         {'header': 'Current selection', 'value': selected_subjects},
-                         {'header': 'Follow-up (mean years)', 'value': followup_years},
+                         {'header': 'Total {} Population {}'.format(app.config.get('COHORT_TITLE', ''),
+                                                                    get_update_date_text()),
+                          'value': POPULATION_SIZE},
+                         {'header': 'Current Selection',
+                          'value': selected_subjects},
+                         {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
+                                                                          get_update_date_text()),
+                          'value': followup_years},
                      ] + enroll_data
     return jsonify({
         'age': sex_data,
