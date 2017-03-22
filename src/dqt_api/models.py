@@ -92,3 +92,11 @@ class TabData(db.Model):
     line = db.Column(db.SmallInteger)
     text_type = db.Column(db.String(10))  # header, bold, text, etc. (formatting)
     text = db.Column(db.String(500))
+
+
+class Comment(db.Model):
+    """Comments to include on graphs and locations"""
+    id = db.Column(db.Integer, primary_key=True)
+    location = db.Column(db.String(10))
+    line = db.Column(db.SmallInteger)
+    comment = db.Column(db.String(200))

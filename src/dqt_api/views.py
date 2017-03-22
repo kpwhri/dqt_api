@@ -218,14 +218,14 @@ def api_filter_chart():
         selected_subjects = 0
         followup_years = 0
 
-    # ensure that masking has been done on all following values
+    subject_counts = [
+                         {'header': 'Population', 'value': POPULATION_SIZE},
+                         {'header': 'Current Selection', 'value': selected_subjects},
+                         {'header': 'Follow-up (mean years)', 'value': followup_years},
+                     ] + enroll_data
     return jsonify({
         'age': sex_data,
-        'subject_counts': [
-                              {'header': 'Population', 'value': POPULATION_SIZE},
-                              {'header': 'Current Selection', 'value': selected_subjects},
-                              {'header': 'Follow-up (mean years)', 'value': followup_years},
-                          ] + enroll_data,
+        'subject_counts': subject_counts
     })
 
 
@@ -487,3 +487,23 @@ def get_tabs():
             curr['lines'].append({'type': tab.text_type, 'text': tab.text})
     res.append(curr)  # fencepost
     return jsonify({'tabs': res})
+
+
+@app.route('/api/comments/<string:component>', methods=['GET'])
+def get_comments(component):
+    """Get data concerning comments on main page"""
+    comments = []
+    for c in db.session.query(
+        models.Comment
+    ).filter(
+        models.Comment.location == component
+    ).order_by(
+        models.Comment.location,
+        models.Comment.line
+    ):
+        comments.append(c.comment)
+    return jsonify({
+        'comments': comments,
+        'mask': app.config['MASK'],
+        'cohortTitle': app.config.get('COHORT_TITLE', '')
+    })

@@ -17,5 +17,6 @@ Create a base directory where logging and configuration information can be store
      AGE_STEP = 5  # increment for age graph
      AGE_MAX = 90  # max age to show (otherwise inferred from data)
      AGE_MIN = 60  # minimum age to show (otherwise inferred from data)
+     COHORT_TITLE = 'ACT'  # short name for population under review
 
 Run the application with `python dqt_api --config /path/to/config.py`.

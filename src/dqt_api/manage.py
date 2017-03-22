@@ -135,6 +135,16 @@ def add_tabs():
     db.session.commit()
 
 
+def add_comments():
+    db.session.add(models.Comment(location='table', line=0,
+                                  comment='(bl) implies baseline values, from the baseline ACT '
+                                          'study visit.'))
+    db.session.add(models.Comment(location='table', line=1,
+                                  comment='(fu) implies baseline values, from a participant\'s most '
+                                          'most recent ACT study visit.'))
+    db.session.commit()
+
+
 def load(count):
     """Load database with sample data."""
 
@@ -145,6 +155,7 @@ def load(count):
             db.session.commit()
 
     add_tabs()
+    add_comments()
 
     c1 = models.Category(name='Demographics',
                          description='Statistical data relating to a population and its subgroups.')
@@ -241,8 +252,6 @@ def load(count):
                 db.session.add(models.Variable(case=i, item=i42.id, value=enroll_before_baseline.id))
                 db.session.add(models.Variable(case=i, item=i43.id, value=enroll_to_followup.id))
                 db.session.add(models.Variable(case=i, item=i44.id, value=followup.id))
-                graph_data[i]['enrollment_before_baseline'] = enroll_before_baseline.name
-                graph_data[i]['enrollment_to_followup'] = enroll_to_followup.name
                 graph_data[i]['followup_years'] = followup.name
 
     db.session.commit()
@@ -253,7 +262,7 @@ def load(count):
 
 def delete():
     for m in [models.Variable, models.DataModel, models.Item, models.Category, models.Value,
-              models.UserData, models.TabData]:
+              models.UserData, models.TabData, models.Comment]:
         db.session.query(m).delete()
     db.session.commit()
 
