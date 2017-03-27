@@ -339,7 +339,7 @@ def add_all_categories():
 
     """
     categories = []
-    for category in models.Category.query.all():
+    for category in db.session.query(models.Category).order_by(models.Category.order).all():
         category_id = category.id
         res = {'items': []}
         for item in models.Item.query.filter_by(category=category_id):
@@ -350,6 +350,7 @@ def add_all_categories():
             ).filter(
                         models.Variable.item == item.id
             ).order_by(
+                models.Value.order,
                 models.Value.name
             ):
                 values.append(
@@ -490,7 +491,9 @@ def get_tabs():
     """Get headers and content for each page"""
     res = []
     curr = None
-    for tab in db.session.query(models.TabData).order_by(models.TabData.header, models.TabData.line):
+    for tab in db.session.query(models.TabData).order_by(
+            models.TabData.order, models.TabData.header, models.TabData.line
+    ):
         if tab.line == 0:
             if curr:
                 res.append(curr)

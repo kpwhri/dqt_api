@@ -35,6 +35,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     description = db.Column(db.String(500))
+    order = db.Column(db.SmallInteger)
 
 
 @whooshee.register_model('name', 'description')
@@ -92,6 +93,7 @@ class TabData(db.Model):
     line = db.Column(db.SmallInteger)
     text_type = db.Column(db.String(10))  # header, bold, text, etc. (formatting)
     text = db.Column(db.String(500))
+    order = db.Column(db.SmallInteger)
 
 
 class Comment(db.Model):
