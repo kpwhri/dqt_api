@@ -52,8 +52,13 @@ def add_items(items, datamodel_vars):
     :return:
     """
     res = []
+    desc = [i[:-5] for i in items if i.endswith('_desc')]
     for item in items:
-        if item in COLUMN_TO_LABEL:
+        has_desc = False  # HACK: certain labels I only want when they end in "_desc"
+        if item.endswith('_desc'):
+            item = item[:-5]
+            has_desc = True
+        if item in COLUMN_TO_LABEL and (item not in desc or has_desc):
             # item = COLUMN_TO_LABEL[item]
             res.append(item)
             if item not in ITEMS:
@@ -64,6 +69,9 @@ def add_items(items, datamodel_vars):
                 db.session.add(i)
         elif item in datamodel_vars:
             res.append(datamodel_vars[item])
+        elif item in desc:
+            res.append(None)
+            pass
         else:
             print('Missing column: {}.'.format(item))
             res.append(None)
@@ -76,13 +84,9 @@ def parse_csv(fp, datamodel_vars,
               items_from_data_dictionary_only):
     """
     Load csv file into database, committing after each case.
-    :param intake_date:
-    :param followup_years:
+    :param datamodel_vars:
     :param items_from_data_dictionary_only:
     :param fp:
-    :param age: column name for age variable (for graphing)
-    :param gender: column name for gender variable (for graphing)
-    :param enrollment: column name for enrollment variable (for graphing)
     :return:
     """
     items = []
@@ -170,7 +174,7 @@ def unpack_categories(categorization_csv, min_priority):
                 if category in CATEGORIES:
                     category_instance = CATEGORIES[category]
                 else:  # not yet added
-                    category_instance = models.Category(name=category)
+                    category_instance = models.Category(name=category, order=len(CATEGORIES))
                     db.session.add(category_instance)
                     CATEGORIES[category] = category_instance
                 COLUMN_TO_DESCRIPTION[name.lower()] = description
@@ -181,8 +185,8 @@ def unpack_categories(categorization_csv, min_priority):
                         i = models.Item(name=label,
                                         description=description,
                                         category=category_instance.id)
-                        for cat in categories.split('\n'):
-                            order, value = re.split(r'\W+', cat, maxsplit=1)
+                        for cat in categories.split('||'):
+                            order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
                             order = int(order)
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
