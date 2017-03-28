@@ -491,10 +491,12 @@ def get_tabs():
     """Get headers and content for each page"""
     res = []
     curr = None
+    c_header = None
     for tab in db.session.query(models.TabData).order_by(
             models.TabData.order, models.TabData.header, models.TabData.line
     ):
-        if tab.line == 0:
+        if tab.header != c_header:
+            c_header = tab.header
             if curr:
                 res.append(curr)
             curr = {
