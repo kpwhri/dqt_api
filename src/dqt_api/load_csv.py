@@ -4,17 +4,15 @@ of how to load data from csv into the dqt format.
 """
 import argparse
 import csv
-
 import re
 from collections import defaultdict
-
 from datetime import datetime
 
 from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
+from dqt_api.manage import add_tabs
 
-# mapping of csv columns ("name"( to category labels
 COLUMN_TO_CATEGORY = {}
 COLUMN_TO_DESCRIPTION = {}
 COLUMN_TO_LABEL = {}  # column name to "label" (the visible piece)
@@ -198,22 +196,6 @@ def unpack_categories(categorization_csv, min_priority):
                                         is_numeric=True)
                     ITEMS[name] = i
                     db.session.add(i)
-    db.session.commit()
-
-
-def add_tabs(tab_file):
-    """
-    
-    :param tab_file: file with tab information separate by "=="
-        TabName==Type==Text
-    :return: 
-    """
-    with open(tab_file) as fh:
-        for i, line in enumerate(fh):
-            name, tab_order, text_type, *text = line.split('==')
-            t = models.TabData(header=name, text='=='.join(text),
-                               line=i, order=int(tab_order), text_type=text_type)
-            db.session.add(t)
     db.session.commit()
 
 

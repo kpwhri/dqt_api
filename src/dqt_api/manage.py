@@ -8,7 +8,7 @@ from flask_alembic import Alembic
 from flask_script import Manager
 from flask_migrate import Migrate
 from flask_alembic.cli.script import manager as alembic_manager
-from dqt_api import db, app, whooshee
+from dqt_api import db, app, whooshee, models
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
@@ -18,11 +18,14 @@ def main():
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
-    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete', 'overload', 'reindex'),
+    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete',
+                                             'overload', 'reindex', 'tabs'),
                         default='manage',
                         help='Operation to perform.')
     parser.add_argument('--count', nargs='*', type=int,
                         help='When loading, specifying number of samples to be generated.')
+    parser.add_argument('--file', default=None,
+                        help='Input filename for some processes (e.g., tabs).')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
     args, unk = parser.parse_known_args()
@@ -43,6 +46,14 @@ def main():
         overload(*args.count)
     elif args.method == 'reindex':
         reindex()
+    elif args.method == 'tabs':
+        update_tabs(args.file)
+
+
+def update_tabs(fp):
+    db.session.query(models.TabData).delete()
+    db.session.commit()
+    add_tabs(fp)
 
 
 def reindex():
@@ -123,7 +134,7 @@ def overload(category_count, item_count, subject_count=None):
         print('Completed subject: {}'.format(subject_id))
 
 
-def add_tabs():
+def add_random_tabs():
     db.session.add(models.TabData(header='FAQ', line=0, text_type='header',
                                   text='What is the data query tool?'))
     db.session.add(models.TabData(header='FAQ', line=1, text_type='text',
@@ -154,7 +165,7 @@ def load(count):
         if commit:
             db.session.commit()
 
-    add_tabs()
+    add_random_tabs()
     add_comments()
 
     c1 = models.Category(name='Demographics',
@@ -264,6 +275,25 @@ def delete():
     for m in [models.Variable, models.DataModel, models.Item, models.Category, models.Value,
               models.UserData, models.TabData, models.Comment]:
         db.session.query(m).delete()
+    db.session.commit()
+
+
+def add_tabs(tab_file):
+    """
+
+    :param tab_file: file with tab information separate by "=="
+        TabName==Type==Text
+    :return:
+    """
+    with open(tab_file) as fh:
+        for i, line in enumerate(fh):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            name, tab_order, text_type, *text = line.split('==')
+            t = models.TabData(header=name, text='=='.join(text),
+                               line=i, order=int(tab_order), text_type=text_type)
+            db.session.add(t)
     db.session.commit()
 
 

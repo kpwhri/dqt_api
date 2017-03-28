@@ -92,7 +92,7 @@ class TabData(db.Model):
     header = db.Column(db.String(15))
     line = db.Column(db.SmallInteger)
     text_type = db.Column(db.String(10))  # header, bold, text, etc. (formatting)
-    text = db.Column(db.String(500))
+    text = db.Column(db.Text)
     order = db.Column(db.SmallInteger)
 
 
