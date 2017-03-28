@@ -201,6 +201,22 @@ def unpack_categories(categorization_csv, min_priority):
     db.session.commit()
 
 
+def add_tabs(tab_file):
+    """
+    
+    :param tab_file: file with tab information separate by "=="
+        TabName==Type==Text
+    :return: 
+    """
+    with open(tab_file) as fh:
+        for i, line in enumerate(fh):
+            name, tab_order, text_type, *text = line.split('==')
+            t = models.TabData(header=name, text='=='.join(text),
+                               line=i, order=int(tab_order), text_type=text_type)
+            db.session.add(t)
+    db.session.commit()
+
+
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--config', required=True,
@@ -229,6 +245,8 @@ def main():
     parser.add_argument('--items-from-data-dictionary-only', default=False,
                         help='Only collect items from the data dictionary. '
                              '(Values will still be collected from both.)')
+    parser.add_argument('--tab-file', required=True,
+                        help='"=="-separate file with tab information.')
 
     args, unk = parser.parse_known_args()
 
@@ -248,6 +266,8 @@ def main():
             args.intake_date: 'intake_date',
             args.followup_years: 'followup_years'
         }
+        if args.tab_file:
+            add_tabs(args.tab_file)
         parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
 
