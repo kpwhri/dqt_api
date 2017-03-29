@@ -360,11 +360,18 @@ def get_range_from_category(category: models.Category):
             'id': item.id,
             'description': item.description,
             'values': None if ranges else values,
-            'range': list(ranges) if ranges else None
+            'range': [transform_decimal(x) for x in ranges] if ranges else None
         })
     res['id'] = category.id
     res['name'] = category.name
     res['description'] = category.description
+    return res
+
+
+def transform_decimal(num):
+    res = str(num)
+    if '.' in res:
+        return res[:res.index('.')+2]
     return res
 
 
