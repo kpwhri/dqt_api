@@ -353,6 +353,8 @@ def get_range_from_category(category: models.Category):
             # increase step count if larger range
             if ranges[2] == 1 and ranges[1] - ranges[0] > 20:
                 ranges = [rounding(ranges[0], 5, 0, 0), rounding(ranges[1], 5, 0, 1), 5]
+            elif 0.09 < ranges[2] < 0.11 and ranges[1] - ranges[0] > 10:
+                ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 1]
 
         # record data
         res['items'].append({
