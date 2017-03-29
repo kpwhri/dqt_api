@@ -283,7 +283,8 @@ def add_category(category_id):
         variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
         values = []
         ranges = set()
-        for v in db.session.query(models.Value).filter(models.Value.id.in_(variables)).order_by(models.Value.name):
+        for v in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.name)
+                  for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
             values.append(
                 {'id': v.id,
                  'name': v.name,
