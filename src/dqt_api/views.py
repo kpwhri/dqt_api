@@ -298,7 +298,7 @@ def add_category(category_id):
                 except ValueError:
                     pass
                 try:
-                    val = float(v.name)
+                    val = rounding(float(v.name), 0.1, 1, 0)
                 except ValueError:
                     pass
                 if val is None:
@@ -314,7 +314,10 @@ def add_category(category_id):
                 if prev:
                     rsteps.append(el - prev)
                 prev = el
-            ranges = [min(ranges), max(ranges), min(rsteps)]
+            max_range = max(ranges)
+            if type(max_range) == float:
+                max_range += 0.1
+            ranges = [min(ranges), max_range, min(rsteps)]
 
         # record data
         res['items'].append({
@@ -328,6 +331,21 @@ def add_category(category_id):
     res['name'] = category.name
     res['description'] = category.description
     return jsonify(res)
+
+
+def rounding(val, rounder, decimals=1, direction=1):
+    """
+    
+    :param rounder: 
+    :param decimals: 
+    :param val: 
+    :param direction: 1=round up; 0=round down 
+    :return: 
+    """
+    res = round(val - (val % rounder), decimals)
+    if direction == 1:
+        return res + rounder
+    return res
 
 
 def chunker(iterable, chunk_size, fillvalue=None):
@@ -416,6 +434,7 @@ def get_min_in_range(ranges, rstep):
     rstep = rstep
     if v and v % rstep:
         v -= v % rstep
+
     return v
 
 
