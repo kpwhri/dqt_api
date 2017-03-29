@@ -283,32 +283,33 @@ def add_category(category_id):
         variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
         values = []
         ranges = set()
-        for v in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.name)
-                  for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
-            values.append(
-                {'id': v.id,
-                 'name': v.name,
-                 'description': v.description
-                 }
-            )
-            # determine if value could be part of range
-            if ranges is not None:
-                val = None
-                try:
-                    val = int(v.name)
-                except ValueError:
-                    pass
-                if val is None:
+        for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.name)
+                     for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
+            for v in vals:
+                values.append(
+                    {'id': v.id,
+                     'name': v.name,
+                     'description': v.description
+                     }
+                )
+                # determine if value could be part of range
+                if ranges is not None:
+                    val = None
                     try:
-                        print(v.name)
-                        val = rounding(float(v.name), 0.1, 1, 0)
-                        print(val)
+                        val = int(v.name)
                     except ValueError:
                         pass
-                if val is None:
-                    ranges = None
-                else:
-                    ranges.add(val)
+                    if val is None:
+                        try:
+                            print(v.name)
+                            val = rounding(float(v.name), 0.1, 1, 0)
+                            print(val)
+                        except ValueError:
+                            pass
+                    if val is None:
+                        ranges = None
+                    else:
+                        ranges.add(val)
 
         # determine step
         if ranges:
@@ -538,9 +539,9 @@ def get_comments(component):
     """Get data concerning comments on main page"""
     comments = []
     for c in db.session.query(
-        models.Comment
+            models.Comment
     ).filter(
-        models.Comment.location == component
+                models.Comment.location == component
     ).order_by(
         models.Comment.location,
         models.Comment.line
