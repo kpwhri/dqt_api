@@ -278,8 +278,33 @@ def add_category(category_id):
     """Get information about a particular category.
 
     """
+    category = models.Category.query.filter_by(id=category_id).first()
+    res = get_range_from_category(category)
+    return jsonify(res)
+
+
+def rounding(val, rounder, decimals=1, direction=1):
+    """
+    
+    :param rounder: 
+    :param decimals: 
+    :param val: 
+    :param direction: 1=round up; 0=round down 
+    :return: 
+    """
+    res = round(val - (val % rounder), decimals)
+    if direction == 1 and res != val:
+        return res + rounder
+    return res
+
+
+def chunker(iterable, chunk_size, fillvalue=None):
+    return zip_longest(*[iter(iterable)] * chunk_size, fillvalue=fillvalue)
+
+
+def get_range_from_category(category: models.Category):
     res = {'items': []}
-    for item in models.Item.query.filter_by(category=category_id):
+    for item in models.Item.query.filter_by(category=category.id):
         variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
         values = []
         ranges = set()
@@ -322,7 +347,12 @@ def add_category(category_id):
             max_range = max(ranges)
             if int(max_range) != max_range:
                 max_range += 0.1
+            if len(ranges) == 1 or len(rsteps) == 0:  # all items have same value
+                continue
             ranges = [min(ranges), max_range, min(rsteps)]
+            # increase step count if larger range
+            if ranges[2] == 1 and ranges[1] - ranges[0] > 20:
+                ranges = [rounding(ranges[0], 5, 0, 0), rounding(ranges[1], 5, 0, 1), 5]
 
         # record data
         res['items'].append({
@@ -330,31 +360,12 @@ def add_category(category_id):
             'id': item.id,
             'description': item.description,
             'values': None if ranges else values,
-            'range': ranges
+            'range': list(ranges) if ranges else None
         })
-    category = models.Category.query.filter_by(id=category_id).first()
+    res['id'] = category.id
     res['name'] = category.name
     res['description'] = category.description
-    return jsonify(res)
-
-
-def rounding(val, rounder, decimals=1, direction=1):
-    """
-    
-    :param rounder: 
-    :param decimals: 
-    :param val: 
-    :param direction: 1=round up; 0=round down 
-    :return: 
-    """
-    res = round(val - (val % rounder), decimals)
-    if direction == 1:
-        return res + rounder
     return res
-
-
-def chunker(iterable, chunk_size, fillvalue=None):
-    return zip_longest(*[iter(iterable)] * chunk_size, fillvalue=fillvalue)
 
 
 @app.route('/api/category/all', methods=['GET'])
@@ -364,72 +375,8 @@ def add_all_categories():
     """
     categories = []
     for category in db.session.query(models.Category).order_by(models.Category.order).all():
-        category_id = category.id
-        res = {'items': []}
-        for item in models.Item.query.filter_by(category=category_id):
-            values = []
-            ranges = []
-            for v in db.session.query(models.Value).join(
-                    models.Variable
-            ).filter(
-                        models.Variable.item == item.id
-            ).order_by(
-                models.Value.order,
-                models.Value.name
-            ):
-                values.append(
-                    {'id': v.id,
-                     'name': v.name,
-                     'description': v.description
-                     }
-                )
-                # determine if value could be part of range
-                if ranges is not None:
-                    val = None
-                    try:
-                        val = int(v.name)
-                    except ValueError:
-                        pass
-                    try:
-                        val = float(v.name)
-                    except ValueError:
-                        pass
-                    if val is None:
-                        ranges = None
-                    else:
-                        ranges.append(val)
-
-            # determine step
-            if ranges:
-                prev = None
-                rsteps = []
-                for el in sorted(set(ranges)):
-                    if prev:
-                        rsteps.append(el - prev)
-                    prev = el
-                try:
-                    rstep = min(rsteps)  # skip if not items
-                except ValueError as e:
-                    print(e, category.name, item.name)
-                    continue
-                try:
-                    ranges = [get_min_in_range(ranges, rstep), get_max_in_range(ranges, rstep), rstep]
-                except Exception as e:
-                    print(e, category.name, item.name, rsteps)
-                    continue
-
-            # record data
-            res['items'].append({
-                'name': item.name,
-                'id': item.id,
-                'description': item.description,
-                'values': None if ranges else values,
-                'range': ranges
-            })
-        category = models.Category.query.filter_by(id=category_id).first()
-        res['id'] = category.id
-        res['name'] = category.name
-        res['description'] = category.description
+        cat = models.Category.query.filter_by(id=category.id).first()
+        res = get_range_from_category(cat)
         categories.append(res)
     return jsonify({'categories': categories})
 
