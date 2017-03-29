@@ -146,7 +146,7 @@ def add_random_tabs():
     db.session.commit()
 
 
-def add_comments():
+def add_random_comments():
     db.session.add(models.Comment(location='table', line=0,
                                   comment='(bl) implies baseline values, from the baseline ACT '
                                           'study visit.'))
@@ -166,7 +166,7 @@ def load(count):
             db.session.commit()
 
     add_random_tabs()
-    add_comments()
+    add_random_comments()
 
     c1 = models.Category(name='Demographics',
                          description='Statistical data relating to a population and its subgroups.')
@@ -282,7 +282,8 @@ def add_tabs(tab_file):
     """
 
     :param tab_file: file with tab information separate by "=="
-        TabName==Type==Text
+        TabName==TabOrder==Type==Text|Header|Bold
+        At least TabName="Home" required (this is welcome page)
     :return:
     """
     with open(tab_file) as fh:
@@ -294,6 +295,26 @@ def add_tabs(tab_file):
             t = models.TabData(header=name, text='=='.join(text),
                                line=i, order=int(tab_order), text_type=text_type)
             db.session.add(t)
+    db.session.commit()
+
+
+def add_comments(comment_file):
+    """
+
+    :param comment_file: "=="-separated file with comment information
+        Location==Line==CommentText
+        Location: only "table" makes sense right now
+    :return:
+    """
+    with open(comment_file) as fh:
+        for i, line in enumerate(fh):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            location, line_number, *text = line.split('==')
+            c = models.Comment(location=location, line=line_number,
+                               comment='=='.join(text))
+            db.session.add(c)
     db.session.commit()
 
 

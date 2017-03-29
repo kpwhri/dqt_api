@@ -228,7 +228,10 @@ def main():
                         help='Only collect items from the data dictionary. '
                              '(Values will still be collected from both.)')
     parser.add_argument('--tab-file', required=True,
-                        help='"=="-separate file with tab information.')
+                        help='"=="-separated file with tab information.')
+    parser.add_argument('--comment-file', required=False,
+                        help='"=="-separated file with comments which can be appended '
+                             'to various locations (only "table" currently supported).')
 
     args, unk = parser.parse_known_args()
 

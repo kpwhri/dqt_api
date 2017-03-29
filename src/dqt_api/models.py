@@ -99,6 +99,6 @@ class TabData(db.Model):
 class Comment(db.Model):
     """Comments to include on graphs and locations"""
     id = db.Column(db.Integer, primary_key=True)
-    location = db.Column(db.String(10))
+    location = db.Column(db.String(10))  # e.g., "table"
     line = db.Column(db.SmallInteger)
     comment = db.Column(db.String(200))
