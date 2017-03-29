@@ -282,7 +282,7 @@ def add_category(category_id):
     for item in models.Item.query.filter_by(category=category_id):
         variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
         values = []
-        ranges = []
+        ranges = set()
         for v in db.session.query(models.Value).filter(models.Value.id.in_(variables)).order_by(models.Value.name):
             values.append(
                 {'id': v.id,
@@ -297,14 +297,17 @@ def add_category(category_id):
                     val = int(v.name)
                 except ValueError:
                     pass
-                try:
-                    val = rounding(float(v.name), 0.1, 1, 0)
-                except ValueError:
-                    pass
+                if val is None:
+                    try:
+                        print(v.name)
+                        val = rounding(float(v.name), 0.1, 1, 0)
+                        print(val)
+                    except ValueError:
+                        pass
                 if val is None:
                     ranges = None
                 else:
-                    ranges.append(val)
+                    ranges.add(val)
 
         # determine step
         if ranges:
@@ -315,7 +318,7 @@ def add_category(category_id):
                     rsteps.append(el - prev)
                 prev = el
             max_range = max(ranges)
-            if type(max_range) == float:
+            if int(max_range) != max_range:
                 max_range += 0.1
             ranges = [min(ranges), max_range, min(rsteps)]
 
