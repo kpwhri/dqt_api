@@ -14,6 +14,7 @@ from sqlalchemy import inspect
 from dqt_api import db, app, models
 
 POPULATION_SIZE = 0
+PRECOMPUTED_COLUMN = []
 
 
 @app.before_first_request
@@ -21,6 +22,8 @@ def initialize(*args, **kwargs):
     """Initialize starting values."""
     global POPULATION_SIZE
     POPULATION_SIZE = db.session.query(models.DataModel).count()
+    global PRECOMPUTED_COLUMN
+    PRECOMPUTED_COLUMN = get_all_categories()
 
 
 @app.route('/', methods=['GET'])
@@ -382,12 +385,18 @@ def add_all_categories():
     """Get information about a particular category.
 
     """
+    return jsonify({'categories': get_all_categories()})
+
+
+def get_all_categories():
+    if PRECOMPUTED_COLUMN:
+        return PRECOMPUTED_COLUMN
     categories = []
     for category in db.session.query(models.Category).order_by(models.Category.order).all():
         cat = models.Category.query.filter_by(id=category.id).first()
         res = get_range_from_category(cat)
         categories.append(res)
-    return jsonify({'categories': categories})
+    return categories
 
 
 def get_min_in_range(ranges, rstep):
