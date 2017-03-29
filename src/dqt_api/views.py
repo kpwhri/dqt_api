@@ -174,7 +174,6 @@ def api_filter_export():
             subfilters = []
             for v in val.split('_'):
                 subfilters.append(db.session.query(models.Value.name).filter_by(id=v).first()[0])
-                print(v, subfilters)
             if len(subfilters) > 1:
                 filters.append('({} IN ({}))'.format(item, ', '.join(subfilters)))
             else:
@@ -329,9 +328,7 @@ def get_range_from_category(category: models.Category):
                         pass
                     if val is None:
                         try:
-                            print(v.name)
                             val = rounding(float(v.name), 0.1, 1, 0)
-                            print(val)
                         except ValueError:
                             pass
                     if val is None:
@@ -413,8 +410,7 @@ def get_max_in_range(ranges, rstep):
     try:
         v % rstep
     except ZeroDivisionError:
-        print(v)
-        print(rstep)
+        pass
     if v and v % rstep:
         v += rstep - (v % rstep)
     return v
