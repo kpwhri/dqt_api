@@ -19,7 +19,8 @@ def main():
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
     parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete',
-                                             'overload', 'reindex', 'tabs'),
+                                             'overload', 'reindex', 'tabs', 'drop',
+                                             'recreate'),
                         default='manage',
                         help='Operation to perform.')
     parser.add_argument('--count', nargs='*', type=int,
@@ -37,6 +38,11 @@ def main():
     if args.method == 'manage':
         manage()
     elif args.method == 'create':
+        create()
+    elif args.method == 'drop':
+        drop_all()
+    elif args.method == 'recreate':
+        drop_all()
         create()
     elif args.method == 'load':
         load(args.count[0])
@@ -72,6 +78,11 @@ def manage():
 
     manager.add_command('db', alembic_manager)
     manager.run()
+
+
+def drop_all():
+    db.session.commit()  # check for any uncompleted commits
+    db.drop_all()
 
 
 def create():

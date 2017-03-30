@@ -307,7 +307,7 @@ def chunker(iterable, chunk_size, fillvalue=None):
 def get_range_from_category(category: models.Category):
     res = {'items': []}
     for item in models.Item.query.filter_by(category=category.id):
-        variables = [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)]
+        variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
         values = []
         ranges = set()
         for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.name)

@@ -11,7 +11,7 @@ from datetime import datetime
 from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-from dqt_api.manage import add_tabs
+from dqt_api.manage import add_tabs, add_comments
 
 COLUMN_TO_CATEGORY = {}
 COLUMN_TO_DESCRIPTION = {}
@@ -60,7 +60,7 @@ def add_items(items, datamodel_vars):
             # item = COLUMN_TO_LABEL[item]
             res.append(item)
             if item not in ITEMS:
-                i = models.Item(name=item,
+                i = models.Item(name=COLUMN_TO_LABEL[item],
                                 description=COLUMN_TO_DESCRIPTION[item],
                                 category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
                 ITEMS[item] = i
@@ -126,11 +126,19 @@ def parse_csv(fp, datamodel_vars,
                         continue  # not included in actual dataset
 
                     # get the Value model itself
+                    new_value = None
                     if items[j] in VALUES_BY_ITEM:
-                        new_value = VALUES_BY_ITEM[items[j]][int(value)]
+                        try:
+                            v = int(value)
+                        except ValueError:
+                            pass
+                        else:
+                            if v in VALUES_BY_ITEM[items[j]]:
+                                new_value = VALUES_BY_ITEM[items[j]][v]
                     elif items_from_data_dictionary_only:
                         continue  # skip if user only wants values from data dictionary
-                    else:  # add value if it doesn't exist
+                    # don't include this as else because if-clause needs to go here
+                    if not new_value:  # add value if it doesn't exist
                         if value not in VALUES:
                             val = models.Value(name=value)
                             VALUES[value] = val
@@ -174,10 +182,11 @@ def unpack_categories(categorization_csv, min_priority):
                 else:  # not yet added
                     category_instance = models.Category(name=category, order=len(CATEGORIES))
                     db.session.add(category_instance)
+                    db.session.commit()
                     CATEGORIES[category] = category_instance
                 COLUMN_TO_DESCRIPTION[name.lower()] = description
-                COLUMN_TO_LABEL[name.lower()] = label.lower()
-                if 'categories' in header:  # these categories are really ITEMS
+                COLUMN_TO_LABEL[name.lower()] = label
+                if 'categories' in header:  # these "categories" are really ITEMS
                     categories = extra[header.index('categories') - 4].strip()
                     if categories[0] in '0123456789':
                         i = models.Item(name=label,
@@ -188,13 +197,14 @@ def unpack_categories(categorization_csv, min_priority):
                             order = int(order)
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
-                            VALUES_BY_ITEM[name][order] = v
+                            VALUES_BY_ITEM[name.lower()][order] = v
+                            db.session.commit()
                     else:
                         i = models.Item(name=label,
                                         description=description,
                                         category=category_instance.id,
                                         is_numeric=True)
-                    ITEMS[name] = i
+                    ITEMS[name.lower()] = i
                     db.session.add(i)
     db.session.commit()
 
@@ -253,6 +263,8 @@ def main():
         }
         if args.tab_file:
             add_tabs(args.tab_file)
+        if args.comment_file:
+            add_comments(args.comment_file)
         parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
 
