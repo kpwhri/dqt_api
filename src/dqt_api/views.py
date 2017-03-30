@@ -310,13 +310,16 @@ def get_range_from_category(category: models.Category):
         variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
         values = []
         ranges = set()
-        for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.name)
+        for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.order,
+                                                                                                  models.Value.name)
                      for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
             for v in vals:
+                print(v.id, v.name, v.order)
                 values.append(
                     {'id': v.id,
                      'name': v.name,
-                     'description': v.description
+                     'description': v.description,
+                     'order': v.order if v.order is not None else 100
                      }
                 )
                 # determine if value could be part of range
@@ -335,7 +338,7 @@ def get_range_from_category(category: models.Category):
                         ranges = None
                     else:
                         ranges.add(val)
-
+        values = sorted(values, key=lambda k: k['order'])
         # determine step
         if ranges:
             prev = None
