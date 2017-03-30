@@ -314,7 +314,6 @@ def get_range_from_category(category: models.Category):
                                                                                                   models.Value.name)
                      for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
             for v in vals:
-                print(v.id, v.name, v.order)
                 values.append(
                     {'id': v.id,
                      'name': v.name,
