@@ -16,6 +16,7 @@ from dqt_api import db, app, models
 
 POPULATION_SIZE = 0
 PRECOMPUTED_COLUMN = []
+PRECOMPUTED_FILTER = None
 
 
 @app.before_first_request
@@ -25,6 +26,8 @@ def initialize(*args, **kwargs):
     POPULATION_SIZE = db.session.query(models.DataModel).count()
     global PRECOMPUTED_COLUMN
     PRECOMPUTED_COLUMN = get_all_categories()
+    global PRECOMPUTED_FILTER
+    PRECOMPUTED_FILTER = api_filter_chart_helper(jitter=False)
 
 
 def jitter_value_by_date(value):
@@ -114,10 +117,10 @@ def parse_arg_list(arg_list):
     if not cases:
         if cases is None:
             no_results_flag = False  # there was no query/empty query
+            cases = db.session.query(models.Variable.case).all()
         else:
             no_results_flag = True  # this query has returned no results
-        cases = db.session.query(models.Variable.case).all()
-    cases = {x[0] for x in list(cases)}
+    cases = {x[0] for x in list(cases)} if cases else None
     return cases, no_results_flag
 
 
@@ -195,9 +198,21 @@ def get_update_date_text():
 
 
 @app.route('/api/filter/chart', methods=['GET'])
-def api_filter_chart():
+def api_filter_chart(jitter=True):
+    subject_counts, sex_data = api_filter_chart_helper(jitter)
+    return jsonify({
+        'age': sex_data,
+        'subject_counts': subject_counts
+    })
+
+
+def api_filter_chart_helper(jitter=True):
+    def jitter_function(x):
+        return jitter_value_by_date(x) if jitter else x
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
+    if (no_results_flag is False or len(cases) >= POPULATION_SIZE) and PRECOMPUTED_FILTER:
+        return PRECOMPUTED_FILTER
 
     # get data for graphs
     data = iterchain(
@@ -214,17 +229,23 @@ def api_filter_chart():
     age_buckets.append('{}+'.format(age_max - age_step))
     sex_data = {'labels': age_buckets,  # show age range
                 'datasets': []}
+    sex_counts = []
     for label, age_df in df[['sex', 'age']].groupby(['sex']):
+        data = histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                         mask=mask_value, jitter_function=jitter_function)
         sex_data['datasets'].append({
             'label': label.capitalize(),
-            'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                              mask=mask_value, jitter_function=jitter_value_by_date)
+            'data': data
+        })
+        sex_counts.append({
+            'header': label.capitalize(),
+            'value': sum(data)
         })
 
     enroll_data = []
     selected_subjects = 0
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        cnt = jitter_value_by_date(int(cnt)) if jitter_value_by_date(int(cnt)) > mask_value else 0
+        cnt = jitter_function(int(cnt)) if jitter_function(int(cnt)) > mask_value else 0
         enroll_data.append({
             'header': '{} {}'.format(label.capitalize(), get_update_date_text()),
             'value': cnt
@@ -246,11 +267,8 @@ def api_filter_chart():
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
                           'value': followup_years},
-                     ] + enroll_data
-    return jsonify({
-        'age': sex_data,
-        'subject_counts': subject_counts
-    })
+                     ] + enroll_data + sex_counts
+    return subject_counts, sex_data
 
 
 def query_to_dict(rset):
@@ -381,7 +399,7 @@ def get_range_from_category(category: models.Category):
 def transform_decimal(num):
     res = str(num)
     if '.' in res:
-        return res[:res.index('.')+2]
+        return res[:res.index('.') + 2]
     return res
 
 
