@@ -5,6 +5,7 @@ import math
 import logging
 from itertools import zip_longest
 
+import datetime
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify
@@ -24,6 +25,10 @@ def initialize(*args, **kwargs):
     POPULATION_SIZE = db.session.query(models.DataModel).count()
     global PRECOMPUTED_COLUMN
     PRECOMPUTED_COLUMN = get_all_categories()
+
+
+def jitter_value_by_date(value):
+    return value + hash(datetime.date.today().strftime('%Y%m%dh')) % 6 - 2
 
 
 @app.route('/', methods=['GET'])
@@ -140,7 +145,8 @@ def get_age_step(df):
     return age_min, age_max, age_step
 
 
-def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False, mask=0):
+def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False, mask=0,
+              jitter_function=lambda x: x):
     """Count elements from the iterable into evenly spaced bins
 
         >>> scores = [82, 85, 90, 91, 70, 87, 45]
@@ -158,7 +164,7 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
     res = [dist[b] for b in range(bins)]
     if group_extra_in_top_bin:
         res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    masked = [r if r > mask else 0 for r in res]
+    masked = [jitter_function(r) if jitter_function(r) > mask else 0 for r in res]
     return masked
 
 
@@ -212,13 +218,13 @@ def api_filter_chart():
         sex_data['datasets'].append({
             'label': label.capitalize(),
             'data': histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                              mask=mask_value)
+                              mask=mask_value, jitter_function=jitter_value_by_date)
         })
 
     enroll_data = []
     selected_subjects = 0
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        cnt = int(cnt) if int(cnt) > mask_value else 0
+        cnt = jitter_value_by_date(int(cnt)) if jitter_value_by_date(int(cnt)) > mask_value else 0
         enroll_data.append({
             'header': '{} {}'.format(label.capitalize(), get_update_date_text()),
             'value': cnt
@@ -236,7 +242,7 @@ def api_filter_chart():
                                                                     get_update_date_text()),
                           'value': POPULATION_SIZE},
                          {'header': 'Current Selection',
-                          'value': selected_subjects},
+                          'value': min(selected_subjects, POPULATION_SIZE)},
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
                           'value': followup_years},
