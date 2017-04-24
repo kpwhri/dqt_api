@@ -43,7 +43,7 @@ def add_categories():
     db.session.commit()
 
 
-def add_items(items, datamodel_vars):
+def add_items(items, datamodel_vars, use_desc=False):
     """
     Add items to database along with their descriptions, and commit.
     :param items: label to display for each item
@@ -54,9 +54,13 @@ def add_items(items, datamodel_vars):
     for item in items:
         has_desc = False  # HACK: certain labels I only want when they end in "_desc"
         if item.endswith('_desc'):
-            item = item[:-5]
-            has_desc = True
-        if item in COLUMN_TO_LABEL and (item not in desc or has_desc):
+            if use_desc:
+                item = item[:-5]
+                has_desc = True
+            else:  # skip if not using descending
+                res.append(None)
+                continue
+        if item in COLUMN_TO_LABEL and (item not in desc or has_desc or not use_desc):
             # item = COLUMN_TO_LABEL[item]
             res.append(item)
             if item not in ITEMS:
@@ -116,14 +120,10 @@ def parse_csv(fp, datamodel_vars,
                         else:
                             value = '19{}'.format(value)
                     elif 'age' in items[j] or 'year' in items[j]:
-                        value = str(int_round(value))
-
-                    # data model variables
-                    if items[j] in datamodel_vars:  # name appears == wanted
-                        graph_data[datamodel_vars[items[j]]] = value  # get datamodel var name
-                    elif items[j] in datamodel_vars.values():  # name not requested
-                        graph_data[items[j]] = value
-                        continue  # not included in actual dataset
+                        try:
+                            value = str(int_round(value))
+                        except ValueError:
+                            pass
 
                     # get the Value model itself
                     new_value = None
@@ -135,15 +135,25 @@ def parse_csv(fp, datamodel_vars,
                         else:
                             if v in VALUES_BY_ITEM[items[j]]:
                                 new_value = VALUES_BY_ITEM[items[j]][v]
+                            elif '+' in VALUES_BY_ITEM[items[j]]:
+                                new_value = VALUES_BY_ITEM[items[j]]['+']
                     elif items_from_data_dictionary_only:
                         continue  # skip if user only wants values from data dictionary
                     # don't include this as else because if-clause needs to go here
                     if not new_value:  # add value if it doesn't exist
+                        value = value.lower()
                         if value not in VALUES:
                             val = models.Value(name=value)
                             VALUES[value] = val
                             db.session.add(val)
                         new_value = VALUES[value]
+
+                    # data model variables
+                    if items[j] in datamodel_vars:  # name appears == wanted
+                        graph_data[datamodel_vars[items[j]]] = new_value.name  # get datamodel var name
+                    elif items[j] in datamodel_vars.values():  # name not requested
+                        graph_data[items[j]] = new_value.name
+                        continue  # not included in actual dataset
 
                     # add variable with item and value
                     var = models.Variable(case=i,
@@ -152,7 +162,8 @@ def parse_csv(fp, datamodel_vars,
                     db.session.add(var)
                 print(graph_data)
                 db.session.add(models.DataModel(case=i,
-                                                age=graph_data['age'],
+                                                age_bl=graph_data['age_bl'],
+                                                age_fu=graph_data['age_fu'],
                                                 sex=graph_data['gender'],
                                                 enrollment=graph_data['enrollment'],
                                                 followup_years=int_round(graph_data['followup_years'], 1),
@@ -198,6 +209,8 @@ def unpack_categories(categorization_csv, min_priority):
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
                             VALUES_BY_ITEM[name.lower()][order] = v
+                            if value[-1] == '+':
+                                VALUES_BY_ITEM[name.lower()]['+'] = v  # for values greater than
                             db.session.commit()
                     else:
                         i = models.Item(name=label,
@@ -220,7 +233,9 @@ def main():
                         help='Input csv file containing separate record per line.')
     parser.add_argument('--only-graph-data', action='store_true', default=False,
                         help='This part did not complete.')
-    parser.add_argument('--age', required=True, type=str.lower,
+    parser.add_argument('--age-bl', required=True, type=str.lower,
+                        help='Variable for age (for graphing).')
+    parser.add_argument('--age-fu', required=True, type=str.lower,
                         help='Variable for age (for graphing).')
     parser.add_argument('--gender', required=True, type=str.lower,
                         help='Variable for gender (for graphing).')
@@ -234,7 +249,7 @@ def main():
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
                         help='Minimum priority to allow for variable prioritization. Allow all = 0.')
-    parser.add_argument('--items-from-data-dictionary-only', default=False,
+    parser.add_argument('--items-from-data-dictionary-only', default=False, action='store_true',
                         help='Only collect items from the data dictionary. '
                              '(Values will still be collected from both.)')
     parser.add_argument('--tab-file', required=True,
@@ -255,7 +270,8 @@ def main():
         raise ValueError('Operation no longer supported.')
     else:
         datamodel_vars = {
-            args.age: 'age',
+            args.age_bl: 'age_bl',
+            args.age_fu: 'age_fu',
             args.gender: 'gender',
             args.enrollment: 'enrollment',
             args.intake_date: 'intake_date',
