@@ -268,15 +268,14 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
                 'datasets': []}
     sex_counts = []
     for label, age_df in df[['sex', age_var]].groupby(['sex']):
-        data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                         mask=mask_value, jitter_function=jitter_function)
         sex_data['datasets'].append({
             'label': label.capitalize(),
-            'data': data
+            'data': histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                              mask=mask_value, jitter_function=jitter_function)
         })
         sex_counts.append({
             'header': label.capitalize(),
-            'value': sum(data)
+            'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
         })
     return sex_counts, sex_data
 
