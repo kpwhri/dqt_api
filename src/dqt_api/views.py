@@ -213,6 +213,8 @@ def api_filter_chart_helper(jitter=True):
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
+    if not cases:
+        cases = []  # try an empty list
     if (no_results_flag is False or len(cases) >= POPULATION_SIZE) and PRECOMPUTED_FILTER:
         return PRECOMPUTED_FILTER
 
@@ -239,7 +241,7 @@ def api_filter_chart_helper(jitter=True):
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         cnt = jitter_function(int(cnt)) if jitter_function(int(cnt)) > mask_value else 0
         enroll_data.append({
-            'header': '    -{} {}'.format(label.capitalize(), get_update_date_text()),
+            'header': '- {} {}'.format(label.capitalize(), get_update_date_text()),
             'value': cnt
         })
         selected_subjects += cnt
@@ -275,7 +277,7 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
                               mask=mask_value, jitter_function=jitter_function)
         })
         sex_counts.append({
-            'header': '    -{}'.format(label.capitalize()),
+            'header': '- {}'.format(label.capitalize()),
             'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
         })
     return sex_counts, sex_data
