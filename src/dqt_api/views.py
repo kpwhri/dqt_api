@@ -239,7 +239,7 @@ def api_filter_chart_helper(jitter=True):
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         cnt = jitter_function(int(cnt)) if jitter_function(int(cnt)) > mask_value else 0
         enroll_data.append({
-            'header': '{} {}'.format(label.capitalize(), get_update_date_text()),
+            'header': '    -{} {}'.format(label.capitalize(), get_update_date_text()),
             'value': cnt
         })
         selected_subjects += cnt
@@ -256,10 +256,11 @@ def api_filter_chart_helper(jitter=True):
                           'value': POPULATION_SIZE},
                          {'header': 'Current Selection',
                           'value': min(selected_subjects, POPULATION_SIZE)},
+                     ] + enroll_data + sex_counts_bl + [
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
-                          'value': followup_years},
-                     ] + enroll_data + sex_counts_bl
+                          'value': followup_years}
+    ]
     return subject_counts, sex_data_bl, sex_data_fu
 
 
@@ -274,7 +275,7 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
                               mask=mask_value, jitter_function=jitter_function)
         })
         sex_counts.append({
-            'header': label.capitalize(),
+            'header': '    -{}'.format(label.capitalize()),
             'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
         })
     return sex_counts, sex_data
