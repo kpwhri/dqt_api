@@ -6,6 +6,8 @@ import logging
 from itertools import zip_longest
 
 import datetime
+
+import copy
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify
@@ -17,6 +19,7 @@ from dqt_api import db, app, models
 POPULATION_SIZE = 0
 PRECOMPUTED_COLUMN = []
 PRECOMPUTED_FILTER = None
+NULL_FILTER = None
 
 
 @app.before_first_request
@@ -28,6 +31,23 @@ def initialize(*args, **kwargs):
     PRECOMPUTED_COLUMN = get_all_categories()
     global PRECOMPUTED_FILTER
     PRECOMPUTED_FILTER = api_filter_chart_helper(jitter=False)
+    global NULL_FILTER
+    NULL_FILTER = remove_values(PRECOMPUTED_FILTER)
+
+
+def remove_values(filter):
+    subject_counts, sex_data_bl, sex_data_fu = PRECOMPUTED_FILTER
+    new_subject_counts = copy.deepcopy(subject_counts)
+    new_sex_data_bl = copy.deepcopy(sex_data_bl)
+    new_sex_data_fu = copy.deepcopy(sex_data_fu)
+    for i in range(len(new_subject_counts)):
+        new_subject_counts[i]['value'] = 0
+    for i in range(len(new_sex_data_bl['datasets'])):
+        new_sex_data_bl['datasets']['data'] = [0] * len(new_sex_data_bl['datasets']['data'])
+    for i in range(len(new_sex_data_fu['datasets'])):
+        new_sex_data_fu['datasets']['data'] = [0] * len(new_sex_data_fu['datasets']['data'])
+
+    return new_subject_counts, new_sex_data_bl, new_sex_data_fu
 
 
 def jitter_value_by_date(value):
@@ -214,7 +234,7 @@ def api_filter_chart_helper(jitter=True):
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
     if not cases:
-        cases = []  # try an empty list
+        return NULL_FILTER
     if (no_results_flag is False or len(cases) >= POPULATION_SIZE) and PRECOMPUTED_FILTER:
         return PRECOMPUTED_FILTER
 
