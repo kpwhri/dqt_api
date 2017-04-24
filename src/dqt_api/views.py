@@ -43,9 +43,9 @@ def remove_values(filter):
     for i in range(len(new_subject_counts)):
         new_subject_counts[i]['value'] = 0
     for i in range(len(new_sex_data_bl['datasets'])):
-        new_sex_data_bl['datasets']['data'] = [0] * len(new_sex_data_bl['datasets']['data'])
+        new_sex_data_bl['datasets'][i]['data'] = [0] * len(new_sex_data_bl['datasets'][i]['data'])
     for i in range(len(new_sex_data_fu['datasets'])):
-        new_sex_data_fu['datasets']['data'] = [0] * len(new_sex_data_fu['datasets']['data'])
+        new_sex_data_fu['datasets'][i]['data'] = [0] * len(new_sex_data_fu['datasets'][i]['data'])
 
     return new_subject_counts, new_sex_data_bl, new_sex_data_fu
 
