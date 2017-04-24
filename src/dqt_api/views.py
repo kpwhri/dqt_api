@@ -132,7 +132,7 @@ def get_age_step(df):
         return age_min, age_max, age_step  # return early
 
     # ages = df['age'].unique()
-    ages = [x[0] for x in db.session.query(models.DataModel.age).all()]
+    ages = {x[0] for x in db.session.query(models.DataModel.age_bl).all()}
     if not age_step:
         step = []
         prev_age = None
@@ -199,9 +199,10 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    subject_counts, sex_data = api_filter_chart_helper(jitter)
+    subject_counts, sex_data_bl, sex_data_fu = api_filter_chart_helper(jitter)
     return jsonify({
-        'age': sex_data,
+        'age_bl': sex_data_bl,
+        'age_fu': sex_data_fu,
         'subject_counts': subject_counts
     })
 
@@ -209,6 +210,7 @@ def api_filter_chart(jitter=True):
 def api_filter_chart_helper(jitter=True):
     def jitter_function(x):
         return jitter_value_by_date(x) if jitter else x
+
     # get set of cases
     cases, no_results_flag = parse_arg_list(request.args.lists())
     if (no_results_flag is False or len(cases) >= POPULATION_SIZE) and PRECOMPUTED_FILTER:
@@ -227,20 +229,10 @@ def api_filter_chart_helper(jitter=True):
     # get age counts for each sex
     age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max - age_step, age_step)]
     age_buckets.append('{}+'.format(age_max - age_step))
-    sex_data = {'labels': age_buckets,  # show age range
-                'datasets': []}
-    sex_counts = []
-    for label, age_df in df[['sex', 'age']].groupby(['sex']):
-        data = histogram(age_df['age'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                         mask=mask_value, jitter_function=jitter_function)
-        sex_data['datasets'].append({
-            'label': label.capitalize(),
-            'data': data
-        })
-        sex_counts.append({
-            'header': label.capitalize(),
-            'value': sum(data)
-        })
+    sex_counts_bl, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df, jitter_function,
+                                                mask_value)
+    _, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df, jitter_function,
+                                    mask_value)
 
     enroll_data = []
     selected_subjects = 0
@@ -267,8 +259,26 @@ def api_filter_chart_helper(jitter=True):
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
                           'value': followup_years},
-                     ] + enroll_data + sex_counts
-    return subject_counts, sex_data
+                     ] + enroll_data + sex_counts_bl
+    return subject_counts, sex_data_bl, sex_data_fu
+
+
+def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_function, mask_value):
+    sex_data = {'labels': age_buckets,  # show age range
+                'datasets': []}
+    sex_counts = []
+    for label, age_df in df[['sex', age_var]].groupby(['sex']):
+        data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                         mask=mask_value, jitter_function=jitter_function)
+        sex_data['datasets'].append({
+            'label': label.capitalize(),
+            'data': data
+        })
+        sex_counts.append({
+            'header': label.capitalize(),
+            'value': sum(data)
+        })
+    return sex_counts, sex_data
 
 
 def query_to_dict(rset):

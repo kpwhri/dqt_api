@@ -66,7 +66,8 @@ class DataModel(db.Model):
     This table must be modified to extract additional information for graphs/tables
     """
     case = db.Column(db.Integer, primary_key=True)
-    age = db.Column(db.Integer)
+    age_bl = db.Column(db.Integer)
+    age_fu = db.Column(db.Integer)
     sex = db.Column(db.String(10))
     enrollment = db.Column(db.String(15))
     followup_years = db.Column(db.Integer)
