@@ -129,10 +129,10 @@ def parse_arg_list(arg_list):
                     models.Variable.value.in_(val)
                 ).all()
             )
-        if cases:
-            cases &= cases_
-        else:
+        if cases is None:
             cases = cases_
+        else:
+            cases &= cases_
     if not cases:
         if cases is None:
             no_results_flag = False  # there was no query/empty query
@@ -218,7 +218,7 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    subject_counts, sex_data_bl, sex_data_fu = api_filter_chart_helper(jitter)
+    subject_counts, sex_data_bl, sex_data_fu = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
         'age_bl': sex_data_bl,
         'age_fu': sex_data_fu,
@@ -226,15 +226,15 @@ def api_filter_chart(jitter=True):
     })
 
 
-def api_filter_chart_helper(jitter=True):
+def api_filter_chart_helper(jitter=True, arg_list=None):
     def jitter_function(x):
         return jitter_value_by_date(x) if jitter else x
 
     # get set of cases
-    cases, no_results_flag = parse_arg_list(request.args.lists())
-    if not cases:
+    cases, no_results_flag = parse_arg_list(arg_list or list())
+    if no_results_flag and NULL_FILTER:
         return NULL_FILTER
-    if (no_results_flag is False or len(cases) >= POPULATION_SIZE) and PRECOMPUTED_FILTER:
+    if PRECOMPUTED_FILTER and (no_results_flag is False or len(cases) >= POPULATION_SIZE):
         return PRECOMPUTED_FILTER
 
     # get data for graphs
