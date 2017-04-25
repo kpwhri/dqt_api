@@ -35,11 +35,10 @@ def initialize(*args, **kwargs):
     NULL_FILTER = remove_values(PRECOMPUTED_FILTER)
 
 
-def remove_values(filter):
-    subject_counts, sex_data_bl, sex_data_fu = PRECOMPUTED_FILTER
-    new_subject_counts = copy.deepcopy(subject_counts)
-    new_sex_data_bl = copy.deepcopy(sex_data_bl)
-    new_sex_data_fu = copy.deepcopy(sex_data_fu)
+def remove_values(f):
+    new_subject_counts = copy.deepcopy(f[0])
+    new_sex_data_bl = copy.deepcopy(f[1])
+    new_sex_data_fu = copy.deepcopy(f[2])
     for i in range(len(new_subject_counts)):
         new_subject_counts[i]['value'] = 0
     for i in range(len(new_sex_data_bl['datasets'])):
