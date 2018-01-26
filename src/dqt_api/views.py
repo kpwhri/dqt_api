@@ -410,8 +410,36 @@ def get_range_from_category(category: models.Category):
             # increase step count if larger range
             if ranges[2] == 1 and ranges[1] - ranges[0] > 20:
                 ranges = [rounding(ranges[0], 5, 0, 0), rounding(ranges[1], 5, 0, 1), 5]
-            elif 0.09 < ranges[2] < 0.11 and ranges[1] - ranges[0] > 10:
-                ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 1]
+            elif math.isclose(ranges[2], 0.1):
+                if ranges[1] - ranges[0] > 10:
+                    ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 1]
+                else:
+                    ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 0.1]
+
+            # sometimes the above has trouble
+            # TODO: write an appropriate rounding library
+            ideal_rate = app.config.get('IDEAL_BUCKET_COUNT', 20)
+            current_rounding = ranges[2] * 2
+            segments = (ranges[1] - ranges[0]) / ranges[2]
+            if segments > ideal_rate:
+                if '.' in str(ranges[2]):
+                    if current_rounding > 1:
+                        current_rounding = int(current_rounding)
+                        rounded = int(
+                            math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
+                    else:
+                        zeroes = (str(ranges[2]).split('.')[1].count('0') + 1) * 10
+                        rounded = int(math.ceil((ranges[1] * zeroes - ranges[0] * zeroes) / ideal_rate / (
+                                    current_rounding * zeroes)) * current_rounding * zeroes) / zeroes
+
+                else:
+                    rounded = int(math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
+
+                new_min = int(math.ceil((ranges[0]) / rounded)) * rounded
+                if new_min > ranges[0]:
+                    new_min = int(math.ceil((ranges[0] - rounded) / rounded)) * rounded
+                new_max = int(math.ceil((ranges[1]) / rounded)) * rounded
+                ranges = [new_min, new_max, rounded]
 
         # record data
         res['items'].append({
@@ -506,10 +534,10 @@ def check_user_ip():
 def submit_user_form():
     """Collect user-submitted information about reason for visit.
     """
-    d = models.UserData(name=request.json['name'],
-                        email_address=request.json['emailAddress'],
-                        affiliation=request.json['affiliation'],
-                        reason_for_visiting=request.json['reasonForVisiting'],
+    d = models.UserData(name=request.json['name'][:50],
+                        email_address=request.json['emailAddress'][:100],
+                        affiliation=request.json['affiliation'][:50],
+                        reason_for_visiting=request.json['reasonForVisiting'][:200],
                         ip_address=get_ip_address()
                         )
     db.session.add(d)

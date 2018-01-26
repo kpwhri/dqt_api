@@ -190,10 +190,14 @@ def load(count):
                          description='Variables relating to enrollment in ACT data.')
     load_all(c1, c2, c3, c4, commit=True)
 
-    i11 = models.Item(name='Age',
+    i11 = models.Item(name='Age BL',
                       description='Filter by age range.',
                       category=c1.id,
                       is_numeric=True)
+    i11b = models.Item(name='Age FU',
+                       description='Filter by age range.',
+                       category=c1.id,
+                       is_numeric=True)
     i12 = models.Item(name='Sex',
                       description='Filter by sex.',
                       category=c1.id)
@@ -255,7 +259,8 @@ def load(count):
     # load subjects with random data
     graph_data = defaultdict(defaultdict)  # separate summary data table
     for i in range(count):
-        for item, vals, label in [(i11, ages, 'age'), (i12, mf, 'sex'), (i13, race, None), (i14, yn, None),
+        for item, vals, label in [(i11, ages, 'age_bl'), (i11b, ages, 'age_fu'), (i12, mf, 'sex'), (i13, race, None),
+                                  (i14, yn, None),
                                   (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
                                   (i41, status, 'enrollment'), (None, None, 'enrollment-years'),
                                   (i45, intake_dates, 'intake_date')]:
