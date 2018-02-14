@@ -13,6 +13,7 @@ import sqlalchemy
 from flask import request, jsonify
 from flask_cors import cross_origin
 from sqlalchemy import inspect
+import pickle
 
 from dqt_api import db, app, models
 
@@ -22,17 +23,44 @@ PRECOMPUTED_FILTER = None
 NULL_FILTER = None
 
 
+@app.errorhandler(Exception)
+def exceptions(e):
+    tb = traceback.format_exc()
+    timestamp = strftime('[%Y-%b-%d %H:%M]')
+    app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
+        timestamp, request.remote_addr, request.method,
+        request.scheme, request.full_path, tb)
+    return e.status_code
+    
+
 @app.before_first_request
 def initialize(*args, **kwargs):
     """Initialize starting values."""
-    global POPULATION_SIZE
+
+    global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
+    dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
+    try:
+        with open(dump_file, 'rb') as fh:
+            POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER = pickle.load(fh)
+        app.logger.info('Loaded from file.')
+        return
+    except Exception as e:
+        app.logger.info('Failed to load file: {}'.format(e))
+    app.logger.warning('Initializing...')
     POPULATION_SIZE = db.session.query(models.DataModel).count()
-    global PRECOMPUTED_COLUMN
+    app.logger.warning('Initializing2...')
     PRECOMPUTED_COLUMN = get_all_categories()
-    global PRECOMPUTED_FILTER
+    app.logger.warning('Initializing3...')
     PRECOMPUTED_FILTER = api_filter_chart_helper(jitter=False)
-    global NULL_FILTER
+    app.logger.warning('Initializing4...')
     NULL_FILTER = remove_values(PRECOMPUTED_FILTER)
+    app.logger.warning('Finished initializing...')
+
+    try:
+        with open(dump_file, 'wb') as fh:
+            pickle.dump((POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER), fh)
+    except Exception as e:
+        app.logger.warning('Failed to write to dump file: {}'.format(e))
 
 
 def remove_values(f):
