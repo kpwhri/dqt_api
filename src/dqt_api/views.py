@@ -564,7 +564,7 @@ def submit_user_form():
     """
     d = models.UserData(name=request.json['name'][:50],
                         email_address=request.json['emailAddress'][:100],
-                        affiliation=request.json['affiliation'][:50],
+                        affiliation=request.json.get('affiliation', '')[:50],
                         reason_for_visiting=request.json['reasonForVisiting'][:200],
                         ip_address=get_ip_address()
                         )
