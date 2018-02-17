@@ -562,9 +562,10 @@ def check_user_ip():
 def submit_user_form():
     """Collect user-submitted information about reason for visit.
     """
+    affiliation = request.json.get('affiliation', '') or ''
     d = models.UserData(name=request.json['name'][:50],
                         email_address=request.json['emailAddress'][:100],
-                        affiliation=request.json.get('affiliation', '')[:50],
+                        affiliation=affiliation[:50],
                         reason_for_visiting=request.json['reasonForVisiting'][:200],
                         ip_address=get_ip_address()
                         )
