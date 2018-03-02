@@ -1,4 +1,5 @@
 import os
+import traceback
 from collections import defaultdict, Counter
 
 import math
@@ -8,6 +9,8 @@ from itertools import zip_longest
 import datetime
 
 import copy
+from time import strftime
+
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify
@@ -28,10 +31,10 @@ def exceptions(e):
     tb = traceback.format_exc()
     timestamp = strftime('[%Y-%b-%d %H:%M]')
     app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
-        timestamp, request.remote_addr, request.method,
-        request.scheme, request.full_path, tb)
+                     timestamp, request.remote_addr, request.method,
+                     request.scheme, request.full_path, tb)
     return e.status_code
-    
+
 
 @app.before_first_request
 def initialize(*args, **kwargs):
@@ -309,7 +312,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
                           'value': followup_years}
-    ]
+                     ]
     return subject_counts, sex_data_bl, sex_data_fu
 
 
@@ -458,7 +461,7 @@ def get_range_from_category(category: models.Category):
                     else:
                         zeroes = (str(ranges[2]).split('.')[1].count('0') + 1) * 10
                         rounded = int(math.ceil((ranges[1] * zeroes - ranges[0] * zeroes) / ideal_rate / (
-                                    current_rounding * zeroes)) * current_rounding * zeroes) / zeroes
+                                current_rounding * zeroes)) * current_rounding * zeroes) / zeroes
 
                 else:
                     rounded = int(math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
@@ -616,7 +619,7 @@ def get_comments(component):
     for c in db.session.query(
             models.Comment
     ).filter(
-                models.Comment.location == component
+        models.Comment.location == component
     ).order_by(
         models.Comment.location,
         models.Comment.line
