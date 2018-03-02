@@ -1,4 +1,6 @@
 import os
+import random
+import string
 import traceback
 from collections import defaultdict, Counter
 
@@ -555,10 +557,25 @@ def check_user_ip():
     if remote_addr and remote_addr != 'untrackable':
         d = models.UserData.query.filter_by(ip_address=remote_addr).first()
         if d:
-            db.session.add(models.UserData(ip_address=remote_addr))
+            if d.cookie:
+                cookie = d.cookie
+            else:
+                cookie = create_cookie()
+            db.session.add(models.UserData(ip_address=remote_addr, cookie=cookie))
             db.session.commit()
-            return jsonify({'returnVisitor': True})
+            return jsonify({'returnVisitor': True, 'cookie': cookie})
     return jsonify({'returnVisitor': False})
+
+
+def get_random_string(length):
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
+
+
+def create_cookie():
+    return '{}{}'.format(
+        get_random_string(10),
+        datetime.datetime.today().strftime('%Y%m%d')
+    )
 
 
 @app.route('/api/user/submit', methods=['POST'])
@@ -566,17 +583,35 @@ def submit_user_form():
     """Collect user-submitted information about reason for visit.
     """
     affiliation = request.json.get('affiliation', '') or ''
+    cookie = create_cookie()
     d = models.UserData(name=request.json['name'][:50],
                         email_address=request.json['emailAddress'][:100],
                         affiliation=affiliation[:50],
                         reason_for_visiting=request.json['reasonForVisiting'][:200],
-                        ip_address=get_ip_address()
+                        ip_address=get_ip_address(),
+                        cookie=cookie
                         )
     db.session.add(d)
     db.session.commit()
     return jsonify({
         'id': str(os.urandom(16)),  # this should be a token in SSL
-        'validUser': True
+        'validUser': True,
+        'cookie': cookie
+    })
+
+
+@app.route('/api/user/cookie', methods=['POST'])
+def submit_user_cookie():
+    cookie = request.json.get('cookie', None)
+    if not cookie:
+        # todo: make sure cookie is valid
+        return jsonify({
+            'error': 'missing cookie'
+        })
+    db.session.add(models.UserData(cookie=cookie))
+    db.session.commit()
+    return jsonify({
+
     })
 
 

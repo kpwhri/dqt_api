@@ -83,6 +83,7 @@ class UserData(db.Model):
     affiliation = db.Column(db.String(50))
     reason_for_visiting = db.Column(db.String(200))
     ip_address = db.Column(db.String(20))
+    cookie = db.Column(db.String(20))
     visit_date_utc = db.Column(db.DateTime, default=datetime.utcnow)
 
 
