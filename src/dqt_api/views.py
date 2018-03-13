@@ -146,14 +146,20 @@ def parse_arg_list(arg_list):
     for key, [val, *_] in arg_list:
         if '~' in val:
             val = val.split('~')
-            cases_ = set(
-                db.session.query(models.Variable.case).join(
-                    models.Value
-                ).filter(
-                    models.Variable.item == key,
-                    models.Value.name_numeric.between(int(val[0]), int(val[1]))
-                ).all()
+            q = db.session.query(models.Variable.case).join(
+                models.Value
+            ).filter(
+                models.Variable.item == key
             )
+            if val[0] and val[1]:
+                q = q.filter(models.Value.name_numeric.between(int(val[0]), int(val[1])))
+            elif val[0]:
+                q = q.filter(models.Value.name_numeric >= int(val[0]))
+            elif val[1]:
+                q = q.filter(models.Value.name_numeric <= int(val[1]))
+            else:
+                pass
+            cases_ = set(q.all())
         else:
             val = val.split('_')
             cases_ = set(
@@ -230,7 +236,12 @@ def api_filter_export():
         item = db.session.query(models.Item.name).filter_by(id=key).first()[0]
         if '~' in val:
             low_val, high_val = val.split('~')
-            filters.append('({} >= {} AND {} <= {})'.format(item, low_val, item, high_val))
+            if high_val and low_val:
+                filters.append('({} >= {} AND {} <= {})'.format(item, low_val, item, high_val))
+            elif high_val:
+                filters.append('({} <= {})'.format(item, high_val))
+            elif low_val:
+                filters.append('({} >= {})'.format(item, low_val))
         else:
             subfilters = []
             for v in val.split('_'):
