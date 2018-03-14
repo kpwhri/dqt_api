@@ -616,13 +616,20 @@ def submit_user_cookie():
     cookie = request.json.get('cookie', None)
     if not cookie:
         # todo: make sure cookie is valid
+        app.logger.error('Failed to login cookie: "{}"'.format(cookie))
         return jsonify({
-            'error': 'missing cookie'
+            'messages': {
+                'error': ['Autologin Failed']
+            },
+            'status': False
         })
     db.session.add(models.UserData(cookie=cookie))
     db.session.commit()
     return jsonify({
-
+        'messages': {
+            'info': ['Login Successful']
+        },
+        'status': True
     })
 
 
