@@ -8,7 +8,7 @@ from flask_alembic import Alembic
 from flask_script import Manager
 from flask_migrate import Migrate
 from flask_alembic.cli.script import manager as alembic_manager
-from dqt_api import db, app, whooshee, models
+from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
@@ -30,11 +30,11 @@ def main():
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
     args, unk = parser.parse_known_args()
-
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
+    whooshee.init_app(app)
+    whooshee.app = app
     sys.argv = sys.argv[:1] + unk  # only use commands that have not yet been used
-
     if args.method == 'manage':
         manage()
     elif args.method == 'create':

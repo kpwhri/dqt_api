@@ -39,6 +39,7 @@ cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 
 try:
     whooshee.init_app(app)
+    whooshee.app = app
 except Exception as e:
     print('Failed to initialize whooshee.')
     print(e)
