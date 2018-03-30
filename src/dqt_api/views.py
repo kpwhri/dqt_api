@@ -614,12 +614,20 @@ def submit_user_form():
 @app.route('/api/user/cookie', methods=['POST'])
 def submit_user_cookie():
     cookie = request.json.get('cookie', None)
-    if not cookie:
-        # todo: make sure cookie is valid
+    if not cookie:  # no cookie
         app.logger.error('Failed to login cookie: "{}"'.format(cookie))
         return jsonify({
             'messages': {
-                'error': ['Autologin Failed']
+                'error': ['Auto-login Failed: Unknown']
+            },
+            'status': False
+        })
+    # check if cookie not yet used (invalid cookie)
+    if not models.UserData.query.filter_by(cookie=cookie).scalar():
+        app.logger.error('Invalid cookie: "{}"'.format(cookie))
+        return jsonify({
+            'messages': {
+                'error': ['Auto-login Failed: Unrecognized']
             },
             'status': False
         })
