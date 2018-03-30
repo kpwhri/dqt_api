@@ -8,6 +8,12 @@ import time
 _MIDNIGHT = 24 * 60 * 60  # number of seconds in a day
 
 
+class MyLogFormatter(logging.Formatter):
+
+    def format(self, record):
+        return f'{record.asctime} [{record.filename}:{record.lineno}] : [{record.levelname}] {record.msg}'
+
+
 class StaticTimedRotatingFileHandler(object):
     """
     Handler for logging to a file, rotating the log file at certain timed
@@ -89,6 +95,7 @@ class StaticTimedRotatingFileHandler(object):
                 timeTuple = time.localtime(t + addend)
         self.handler = logging.FileHandler(self.baseFilename + "." +
                                            time.strftime(self.suffix, timeTuple), 'a', encoding, delay)
+        self.handler.setFormatter(MyLogFormatter())
 
     def computeRollover(self, currentTime):
         """
