@@ -104,3 +104,13 @@ class Comment(db.Model):
     location = db.Column(db.String(10))  # e.g., "table"
     line = db.Column(db.SmallInteger)
     comment = db.Column(db.String(200))
+
+
+class DataEntry(db.Model):
+    """Optional: Formal data dictionary for loading data dictionary page"""
+    id = db.Column(db.Integer, primary_key=True)
+    label = db.Column(db.String(50))
+    variable = db.Column(db.String(30))  # underlying variable name
+    values = db.Column(db.Text)
+    category = db.Column(db.String(50))
+    description = db.Column(db.Text)

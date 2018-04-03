@@ -2,7 +2,7 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
 
-from dqt_api import app, cors
+from dqt_api import app, cors, whooshee
 import dqt_api.models
 import dqt_api.views
 import os
@@ -35,6 +35,17 @@ def prepare_config(debug=False):
         os.path.join(app.config['LOG_DIR'], 'log_file'), "midnight", 1)
     handler.suffix = '%Y-%m-%d'
     app.logger.addHandler(handler)
+
+    cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
+
+    try:
+        whooshee.init_app(app)
+        whooshee.app = app  # needs to be done manually
+    except Exception as e:
+        print('Failed to initialize whooshee.')
+        print(e)
+        app.logger.warning('Failed to initialize whooshee.')
+        app.logger.exception(e)
 
 
 def run_cherrypy_server(port=8090):

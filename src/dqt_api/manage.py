@@ -289,7 +289,7 @@ def load(count):
 
 def delete():
     for m in [models.Variable, models.DataModel, models.Item, models.Category, models.Value,
-              models.UserData, models.TabData, models.Comment]:
+              models.UserData, models.TabData, models.Comment, models.DataEntry]:
         db.session.query(m).delete()
     db.session.commit()
 

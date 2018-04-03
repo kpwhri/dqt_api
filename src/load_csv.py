@@ -8,7 +8,9 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
-from dqt_api import db, app
+from docx import Document
+
+from dqt_api import db, app, cors
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 from dqt_api.manage import add_tabs, add_comments
@@ -82,6 +84,12 @@ def add_items(items, datamodel_vars, use_desc=False):
     return res
 
 
+def line_is_empty(lst):
+    if lst:
+        return bool(lst[0])
+    return False
+
+
 def parse_csv(fp, datamodel_vars,
               items_from_data_dictionary_only):
     """
@@ -100,7 +108,7 @@ def parse_csv(fp, datamodel_vars,
         for i, line in enumerate(reader):
             if i == 0:
                 items = add_items([x.lower() for x in line], datamodel_vars)
-            else:
+            elif not line_is_empty(line):
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
@@ -222,6 +230,25 @@ def unpack_categories(categorization_csv, min_priority):
     db.session.commit()
 
 
+def add_data_dictionary(input_file, label_column, name_column, category_col,
+                        descript_col, value_column, **kwargs):
+    doc = Document(input_file)
+    for table in doc.tables[:1]:
+        for row in table.rows[1:]:  # first row is header
+            label = row.cells[label_column].text.lower()
+            if label in ITEMS:
+                item = ITEMS[label]
+                de = models.DataEntry(
+                    label=label,
+                    variable=None if name_column is None else row.cells[name_column].text.lower(),
+                    values=None if value_column is None else row.cells[value_column].text.lower(),
+                    description=item.description if descript_col is None else row.cells[descript_col].text.lower(),
+                    category=COLUMN_TO_CATEGORY[label] if category_col is None else row.cells[category_col].text.lower(),
+                )
+                db.session.add(de)
+    db.session.commit()
+
+
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--config', required=True,
@@ -257,12 +284,26 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
+    # data dictionary loading options
+    parser.add_argument('--dd-input-file',
+                        help='Path to word document containing data dictionary.'
+                             ' Values are expected to be contained in the first table'
+                             ' in the file.')
+    parser.add_argument('--dd-label-column', type=int, required=True,
+                        help='Index of label column in document')
+    parser.add_argument('--dd-category-column', type=int,
+                        help='Index of category column in document')
+    parser.add_argument('--dd-name-column', type=int,
+                        help='Index of variable name column in document')
+    parser.add_argument('--dd-description-column', type=int,
+                        help='Index of description column in document')
+    parser.add_argument('--dd-value-column', type=int,
+                        help='Index of values column in document')
 
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
     prepare_config(args.debug)
-
     args = parser.parse_args()
 
     unpack_categories(args.categorization_csv, args.minimum_priority)
@@ -282,6 +323,16 @@ def main():
         if args.comment_file:
             add_comments(args.comment_file)
         parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+
+        if args.dd_input_file:
+            add_data_dictionary(
+                args.dd_input_file,
+                args.dd_label_column,
+                args.dd_category_column,
+                args.dd_name_column,
+                args.dd_description_column,
+                args.dd_value_column,
+            )
 
 
 if __name__ == '__main__':
