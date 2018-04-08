@@ -16,7 +16,6 @@ from time import strftime
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify
-from flask_cors import cross_origin
 from sqlalchemy import inspect
 import pickle
 
@@ -35,7 +34,13 @@ def exceptions(e):
     app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
                      timestamp, request.remote_addr, request.method,
                      request.scheme, request.full_path, tb)
-    return e.status_code
+    try:
+        response = jsonify(e.to_dict())
+        response.status_code = e.status_code
+    except AttributeError:
+        response = jsonify(e.__dict__)
+        response.status_code = 500
+    return response
 
 
 @app.before_first_request
@@ -623,7 +628,7 @@ def submit_user_cookie():
             'status': False
         })
     # check if cookie not yet used (invalid cookie)
-    if not models.UserData.query.filter_by(cookie=cookie).scalar():
+    if not models.UserData.query.filter_by(cookie=cookie).first():
         app.logger.error('Invalid cookie: "{}"'.format(cookie))
         return jsonify({
             'messages': {
