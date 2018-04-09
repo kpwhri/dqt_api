@@ -1,3 +1,4 @@
+import datetime
 import logging.handlers
 import logging
 import os
@@ -11,10 +12,11 @@ _MIDNIGHT = 24 * 60 * 60  # number of seconds in a day
 class MyLogFormatter(logging.Formatter):
 
     def format(self, record):
-        return f'{record.asctime} [{record.filename}:{record.lineno}] : [{record.levelname}] {record.msg}'
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f %z')
+        return f'{now} [{record.filename}:{record.lineno}] : [{record.levelname}] {record.msg}'
 
 
-class StaticTimedRotatingFileHandler(object):
+class StaticTimedRotatingFileHandler:
     """
     Handler for logging to a file, rotating the log file at certain timed
     intervals.
