@@ -83,8 +83,9 @@ def remove_values(f):
         new_sex_data_bl['datasets'][i]['data'] = [0] * len(new_sex_data_bl['datasets'][i]['data'])
     for i in range(len(new_sex_data_fu['datasets'])):
         new_sex_data_fu['datasets'][i]['data'] = [0] * len(new_sex_data_fu['datasets'][i]['data'])
-
-    return new_subject_counts, new_sex_data_bl, new_sex_data_fu
+    new_sex_data_bl_g = get_google_chart(new_sex_data_bl)
+    new_sex_data_fu_g = get_google_chart(new_sex_data_fu)
+    return new_subject_counts, new_sex_data_bl, new_sex_data_fu, new_sex_data_bl_g, new_sex_data_fu_g
 
 
 def jitter_value_by_date(value):
@@ -267,11 +268,16 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    subject_counts, sex_data_bl, sex_data_fu = api_filter_chart_helper(jitter, request.args.lists())
+    (subject_counts, sex_data_bl, sex_data_fu,
+     sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
+    print(sex_data_bl)
+    print(sex_data_bl_g)
     return jsonify({
         'age_bl': sex_data_bl,
         'age_fu': sex_data_fu,
-        'subject_counts': subject_counts
+        'subject_counts': subject_counts,
+        'age_bl_g': sex_data_bl_g,
+        'age_fu_g': sex_data_fu_g,
     })
 
 
@@ -331,7 +337,24 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                                                                           get_update_date_text()),
                           'value': followup_years}
                      ]
-    return subject_counts, sex_data_bl, sex_data_fu
+
+    # for google api
+    sex_data_bl_g = get_google_chart(sex_data_bl)
+    sex_data_fu_g = get_google_chart(sex_data_fu)
+    return subject_counts, sex_data_bl, sex_data_fu, sex_data_bl_g, sex_data_fu_g
+
+
+def get_google_chart(data):
+    new_data = []
+    new_labels = []
+    for label in data['labels']:
+        new_data.append([label])
+    for dataset in data['datasets']:
+        new_labels.append(dataset['label'])
+        for i, data_point in enumerate(dataset['data']):
+            new_data[i].append(data_point)
+    new_data.insert(0, new_labels)
+    return new_data
 
 
 def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_function, mask_value):
