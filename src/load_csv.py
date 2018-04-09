@@ -84,10 +84,8 @@ def add_items(items, datamodel_vars, use_desc=False):
     return res
 
 
-def line_is_empty(lst):
-    if lst:
-        return bool(lst[0])
-    return False
+def line_not_empty(lst):
+    return bool(lst and lst[0])
 
 
 def parse_csv(fp, datamodel_vars,
@@ -108,7 +106,7 @@ def parse_csv(fp, datamodel_vars,
         for i, line in enumerate(reader):
             if i == 0:
                 items = add_items([x.lower() for x in line], datamodel_vars)
-            elif not line_is_empty(line):
+            elif line_not_empty(line):
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):
                     if not value.strip():  # empty/missing value: exclude
