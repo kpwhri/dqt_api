@@ -120,7 +120,6 @@ def search():
             })
     except sqlalchemy.exc.ProgrammingError:
         app.logger.info('No categories')
-        pass
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -134,15 +133,6 @@ def search():
             })
     except sqlalchemy.exc.ProgrammingError:
         app.logger.info('No items')
-        pass
-    # search value (need to get a category for this!)
-    # for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
-    #     terms.append({
-    #         'type': 'value',
-    #         'id': v.id,
-    #         'name': v.name,
-    #         'description': v.description
-    #     })
     return jsonify({'search': terms})
 
 
