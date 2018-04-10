@@ -261,8 +261,8 @@ def api_filter_chart(jitter=True):
     (subject_counts, sex_data_bl, sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
-        'age_bl': sex_data_bl,
-        'age_fu': sex_data_fu,
+        # 'age_bl': sex_data_bl,
+        # 'age_fu': sex_data_fu,
         'subject_counts': subject_counts,
         'age_bl_g': sex_data_bl_g,
         'age_fu_g': sex_data_fu_g,
