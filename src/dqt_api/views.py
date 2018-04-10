@@ -346,7 +346,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
 
 def get_google_chart(data):
     new_data = []
-    new_labels = []
+    new_labels = ['Age']
     for label in data['labels']:
         new_data.append([label])
     for dataset in data['datasets']:
