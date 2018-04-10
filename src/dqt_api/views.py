@@ -119,7 +119,7 @@ def search():
                 'itemId': None,
             })
     except sqlalchemy.exc.ProgrammingError:
-        print('No categories')
+        app.logger.info('No categories')
         pass
     # search item
     try:
@@ -133,7 +133,7 @@ def search():
                 'itemId': i.id,
             })
     except sqlalchemy.exc.ProgrammingError:
-        print('No items')
+        app.logger.info('No items')
         pass
     # search value (need to get a category for this!)
     # for v in models.Value.query.whooshee_search(target, order_by_relevance=-1):
@@ -270,8 +270,6 @@ def get_update_date_text():
 def api_filter_chart(jitter=True):
     (subject_counts, sex_data_bl, sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
-    print(sex_data_bl)
-    print(sex_data_bl_g)
     return jsonify({
         'age_bl': sex_data_bl,
         'age_fu': sex_data_fu,
