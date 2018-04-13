@@ -17,12 +17,13 @@ def mkdir_p(path):
     return path
 
 
-def prepare_config(debug=False):
+def prepare_config(debug=False, whooshee_dir=False):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
-    # app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
-    # app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+    if whooshee_dir:
+        app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+        app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
     app.config['ALEMBIC'] = {
         'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
         'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
@@ -87,12 +88,14 @@ def main():
                              'BASE_DIR, SECRET_KEY, AGE_STEP, AGE_MAX, AGE_MIN, MASK.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
+    parser.add_argument('--whooshee-dir', default=False, action='store_true',
+                        help='Use whooshee directory in BASE_DIR.')
     parser.add_argument('--server', choices=server_choices, default=server_choices[0],
                         help='Select server to run.')
     args = parser.parse_args()
 
     app.config.from_pyfile(args.config)
-    prepare_config(args.debug)
+    prepare_config(args.debug, args.whooshee_dir)
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
     if args.server == 'cherrypy':
         run_cherrypy_server(port=args.port)

@@ -29,9 +29,11 @@ def main():
                         help='Input filename for some processes (e.g., tabs).')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
+    parser.add_argument('--whooshee-dir', default=False, action='store_true',
+                        help='Use whooshee directory in BASE_DIR.')
     args, unk = parser.parse_known_args()
     app.config.from_pyfile(args.config)
-    prepare_config(args.debug)
+    prepare_config(args.debug, args.whooshee_dir)
     whooshee.init_app(app)
     whooshee.app = app
     sys.argv = sys.argv[:1] + unk  # only use commands that have not yet been used

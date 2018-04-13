@@ -38,7 +38,7 @@ class Category(db.Model):
     order = db.Column(db.SmallInteger)
 
 
-@whooshee.register_model('name', 'description')
+# @whooshee.register_model('name', 'description')
 class Value(db.Model):
     """A possible value for an item.
     At the moment, this will even include values when there is a decimal range/natural ordering.

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from docx import Document
 
-from dqt_api import db, app, cors
+from dqt_api import db, app, cors, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 from dqt_api.manage import add_tabs, add_comments
@@ -254,6 +254,8 @@ def main():
                              'BASE_DIR, SECRET_KEY.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
+    parser.add_argument('--whooshee-dir', default=False, action='store_true',
+                        help='Use whooshee directory in BASE_DIR.')
     parser.add_argument('--csv-file',
                         help='Input csv file containing separate record per line.')
     parser.add_argument('--only-graph-data', action='store_true', default=False,
@@ -301,7 +303,7 @@ def main():
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
-    prepare_config(args.debug)
+    prepare_config(args.debug, args.whooshee_dir)
     args = parser.parse_args()
 
     unpack_categories(args.categorization_csv, args.minimum_priority)
