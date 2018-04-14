@@ -13,6 +13,14 @@ from dqt_api import models
 from dqt_api.__main__ import prepare_config
 
 
+TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
+    models.Variable, models.DataModel, models.Item,
+    models.Category, models.Value, models.TabData,
+    models.Comment, models.DataEntry
+]
+TABLES_EXC_USERDATA_ATTR = [t.__table__ for t in TABLES_EXC_USERDATA]
+
+
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--config', required=True,
@@ -84,11 +92,17 @@ def manage():
 
 def drop_all():
     db.session.commit()  # check for any uncompleted commits
-    db.drop_all()
+    db.metadata.drop_all(
+        db.engine,
+        tables=TABLES_EXC_USERDATA_ATTR
+    )
 
 
 def create():
-    db.create_all()
+    db.metadata.create_all(
+        db.engine,
+        tables=TABLES_EXC_USERDATA_ATTR
+    )
     alembic = Alembic()
     alembic.init_app(app)
 
@@ -290,8 +304,12 @@ def load(count):
 
 
 def delete():
-    for m in [models.Variable, models.DataModel, models.Item, models.Category, models.Value,
-              models.UserData, models.TabData, models.Comment, models.DataEntry]:
+    """
+    Delete all elements in tables except models.UserData
+    - models.UserData should not be deleted
+    :return:
+    """
+    for m in TABLES_EXC_USERDATA:
         db.session.query(m).delete()
     db.session.commit()
 
