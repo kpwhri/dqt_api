@@ -228,22 +228,23 @@ def unpack_categories(categorization_csv, min_priority):
     db.session.commit()
 
 
-def add_data_dictionary(input_file, label_column, name_column, category_col,
+def add_data_dictionary(input_files, label_column, name_column, category_col,
                         descript_col, value_column, **kwargs):
-    doc = Document(input_file)
-    for table in doc.tables[:1]:
-        for row in table.rows[1:]:  # first row is header
-            label = row.cells[label_column].text.lower()
-            if label in ITEMS:
-                item = ITEMS[label]
-                de = models.DataEntry(
-                    label=label,
-                    variable=None if name_column is None else row.cells[name_column].text.lower(),
-                    values=None if value_column is None else row.cells[value_column].text.lower(),
-                    description=item.description if descript_col is None else row.cells[descript_col].text.lower(),
-                    category=COLUMN_TO_CATEGORY[label] if category_col is None else row.cells[category_col].text.lower(),
-                )
-                db.session.add(de)
+    for input_file in input_files:
+        doc = Document(input_file)
+        for table in doc.tables[:1]:
+            for row in table.rows[1:]:  # first row is header
+                label = row.cells[label_column].text.lower()
+                if label in ITEMS:
+                    item = ITEMS[label]
+                    de = models.DataEntry(
+                        label=label,
+                        variable=None if name_column is None else row.cells[name_column].text.lower(),
+                        values=None if value_column is None else row.cells[value_column].text.lower(),
+                        description=item.description if descript_col is None else row.cells[descript_col].text.lower(),
+                        category=COLUMN_TO_CATEGORY[label] if category_col is None else row.cells[category_col].text.lower(),
+                    )
+                    db.session.add(de)
     db.session.commit()
 
 
@@ -285,7 +286,7 @@ def main():
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
     # data dictionary loading options
-    parser.add_argument('--dd-input-file',
+    parser.add_argument('--dd-input-file', nargs='+',
                         help='Path to word document containing data dictionary.'
                              ' Values are expected to be contained in the first table'
                              ' in the file.')
