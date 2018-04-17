@@ -269,6 +269,30 @@ def api_filter_chart(jitter=True):
     })
 
 
+@app.route('/api/dictionary/get', methods=['GET'])
+def api_get_dictionary():
+    lst = []
+    prev_variable = None
+    for de in models.DataEntry.query:
+        if de.variable != prev_variable:
+            prev_variable = de.variable
+            lst.append({
+                'id': de.id,
+                'name': de.variable,
+                'data': []
+            })
+        lst[-1]['data'].append(
+            {'label': de.label,
+             'category': de.category,
+             'description': de.description,
+             'values': de.values or ''
+             }
+        )
+    return jsonify({
+        'data_entries': lst
+    })
+
+
 def api_filter_chart_helper(jitter=True, arg_list=None):
     def jitter_function(x):
         return jitter_value_by_date(x) if jitter else x
