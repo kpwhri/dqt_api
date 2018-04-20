@@ -258,7 +258,8 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    (subject_counts, sex_data_bl, sex_data_fu,
+    # (subject_counts, sex_data_bl, 
+    (sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
         # 'age_bl': sex_data_bl,
