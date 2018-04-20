@@ -31,9 +31,9 @@ NULL_FILTER = None
 def exceptions(e):
     tb = traceback.format_exc()
     timestamp = strftime('[%Y-%b-%d %H:%M]')
-    app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
+    app.logger.error('{} {} {} {} {} 5xx INTERNAL SERVER ERROR\n{}'.format(
                      timestamp, request.remote_addr, request.method,
-                     request.scheme, request.full_path, tb)
+                     request.scheme, request.full_path, tb))
     try:
         response = jsonify(e.to_dict())
         response.status_code = e.status_code
