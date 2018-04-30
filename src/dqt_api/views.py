@@ -31,9 +31,9 @@ NULL_FILTER = None
 def exceptions(e):
     tb = traceback.format_exc()
     timestamp = strftime('[%Y-%b-%d %H:%M]')
-    app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
+    app.logger.error('{} {} {} {} {} 5xx INTERNAL SERVER ERROR\n{}'.format(
                      timestamp, request.remote_addr, request.method,
-                     request.scheme, request.full_path, tb)
+                     request.scheme, request.full_path, tb))
     try:
         response = jsonify(e.to_dict())
         response.status_code = e.status_code
@@ -258,7 +258,8 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    (subject_counts, sex_data_bl, sex_data_fu,
+    (subject_counts, sex_data_bl, 
+     sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
         # 'age_bl': sex_data_bl,
