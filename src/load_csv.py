@@ -279,8 +279,6 @@ def main():
                         help='Use whooshee directory in BASE_DIR.')
     parser.add_argument('--csv-file',
                         help='Input csv file containing separate record per line.')
-    parser.add_argument('--only-graph-data', action='store_true', default=False,
-                        help='This part did not complete.')
     parser.add_argument('--age-bl', required=True, type=str.lower,
                         help='Variable for age (for graphing).')
     parser.add_argument('--age-fu', required=True, type=str.lower,
@@ -328,32 +326,29 @@ def main():
     args = parser.parse_args()
 
     unpack_categories(args.categorization_csv, args.minimum_priority)
-    if args.only_graph_data:
-        raise ValueError('Operation no longer supported.')
-    else:
-        datamodel_vars = {
-            args.age_bl: 'age_bl',
-            args.age_fu: 'age_fu',
-            args.gender: 'gender',
-            args.enrollment: 'enrollment',
-            args.intake_date: 'intake_date',
-            args.followup_years: 'followup_years'
-        }
-        if args.tab_file:
-            add_tabs(args.tab_file)
-        if args.comment_file:
-            add_comments(args.comment_file)
-        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+    datamodel_vars = {
+        args.age_bl: 'age_bl',
+        args.age_fu: 'age_fu',
+        args.gender: 'gender',
+        args.enrollment: 'enrollment',
+        args.intake_date: 'intake_date',
+        args.followup_years: 'followup_years'
+    }
+    if args.tab_file:
+        add_tabs(args.tab_file)
+    if args.comment_file:
+        add_comments(args.comment_file)
+    parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
-        if args.dd_input_file:
-            add_data_dictionary(
-                args.dd_input_file,
-                args.dd_label_column,
-                args.dd_name_column,
-                args.dd_category_column,
-                args.dd_description_column,
-                args.dd_value_column,
-            )
+    if args.dd_input_file:
+        add_data_dictionary(
+            args.dd_input_file,
+            args.dd_label_column,
+            args.dd_name_column,
+            args.dd_category_column,
+            args.dd_description_column,
+            args.dd_value_column,
+        )
 
 
 if __name__ == '__main__':
