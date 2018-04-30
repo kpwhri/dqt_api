@@ -274,16 +274,16 @@ def api_get_dictionary():
     lst = []
     prev_variable = None
     for de in models.DataEntry.query:
-        if de.variable != prev_variable:
-            prev_variable = de.variable
+        if de.category != prev_variable:
+            prev_variable = de.category
             lst.append({
                 'id': de.id,
-                'name': de.variable,
+                'name': de.category,
                 'data': []
             })
         lst[-1]['data'].append(
             {'label': de.label,
-             'category': de.category,
+             'category': de.variable,
              'description': de.description,
              'values': de.values or ''
              }
