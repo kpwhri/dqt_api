@@ -114,3 +114,11 @@ class DataEntry(db.Model):
     values = db.Column(db.Text)
     category = db.Column(db.String(50))
     description = db.Column(db.Text)
+
+
+class DataFile(db.Model):
+    """Data dictionary files"""
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(50))
+    file = db.Column(db.LargeBinary)
+    md5_checksum = db.Column(db.String(32))

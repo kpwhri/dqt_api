@@ -4,6 +4,7 @@ of how to load data from csv into the dqt format.
 """
 import argparse
 import csv
+import hashlib
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -228,7 +229,7 @@ def unpack_categories(categorization_csv, min_priority):
     db.session.commit()
 
 
-def add_data_dictionary(input_files, label_column, name_column, category_col,
+def add_data_dictionary(input_files, file_name, label_column, name_column, category_col,
                         descript_col, value_column, **kwargs):
     """
 
@@ -251,7 +252,7 @@ def add_data_dictionary(input_files, label_column, name_column, category_col,
                 input_file,
                 columns_to_keep=columns_to_keep,
                 include_header=False,
-                append_sheet_name='Category' if category_col else None
+                append_sheet_name=None if category_col else 'Category'
             ):
                 if name is None:
                     continue
@@ -265,6 +266,14 @@ def add_data_dictionary(input_files, label_column, name_column, category_col,
                 db.session.add(de)
         else:
             raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
+    with open(input_file, 'rb') as fh:
+        txt = fh.read()
+        df = models.DataFile(
+            filename=file_name,
+            file=txt,
+            md5_checksum=hashlib.md5(txt).hexdigest()
+        )
+        db.session.add(df)
     db.session.commit()
 
 
@@ -308,6 +317,8 @@ def main():
                         help='Path to excel document(s) containing data dictionary.'
                              ' Values are expected to be contained in the first table'
                              ' in the file.')
+    parser.add_argument('--dd-file-name', default='data-dictionary.xlsx',
+                        help='Filename for downloads')
     parser.add_argument('--dd-label-column', required=True,
                         help='Index of label column in document')
     parser.add_argument('--dd-category-column',
@@ -343,6 +354,7 @@ def main():
     if args.dd_input_file:
         add_data_dictionary(
             args.dd_input_file,
+            args.dd_file_name,
             args.dd_label_column,
             args.dd_name_column,
             args.dd_category_column,

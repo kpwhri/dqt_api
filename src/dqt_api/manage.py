@@ -16,7 +16,7 @@ from dqt_api.__main__ import prepare_config
 TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
     models.Variable, models.DataModel, models.Item,
     models.Category, models.Value, models.TabData,
-    models.Comment, models.DataEntry
+    models.Comment, models.DataEntry, models.DataFile,
 ]
 TABLES_EXC_USERDATA_ATTR = [t.__table__ for t in TABLES_EXC_USERDATA]
 
