@@ -739,7 +739,10 @@ def get_comments(component):
 def get_data_dictionary():
     """Get excel file"""
     df = models.DataFile.query.order_by('-id').first()
-    return send_file(BytesIO(df.file), attachment_filename=df.filename, as_attachment=True)
+    return send_file(BytesIO(df.file),
+                     mimetype='application/vnd.ms-excel',
+                     attachment_filename=df.filename,
+                     as_attachment=True)
 
 
 @app.route('/api/data/dictionary/meta', methods=['GET'])
@@ -747,7 +750,8 @@ def get_data_dictionary_meta():
     """Get checksums"""
     df = models.DataFile.query.order_by('-id').first()
     return jsonify({
-        'checksums': {
-            'md5': df.md5_checksum
-        }
+        'checksums': [{
+            'type': 'md5',
+            'value': df.md5_checksum
+        }]
     })
