@@ -6,6 +6,7 @@ from collections import defaultdict, Counter
 
 import math
 import logging
+from io import BytesIO
 from itertools import zip_longest
 
 import datetime
@@ -15,7 +16,7 @@ from time import strftime
 
 import pandas as pd
 import sqlalchemy
-from flask import request, jsonify
+from flask import request, jsonify, send_file
 from sqlalchemy import inspect
 import pickle
 
@@ -732,3 +733,10 @@ def get_comments(component):
         'mask': app.config['MASK'],
         'cohortTitle': app.config.get('COHORT_TITLE', '')
     })
+
+
+@app.route('/api/data/dictionary/get', methods=['GET'])
+def get_data_dictionary():
+    """Get excel file"""
+    df = models.DataFile.query.order_by('-id').first()
+    return send_file(BytesIO(df.file), attachment_filename=df.filename, as_attachment=True)
