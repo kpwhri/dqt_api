@@ -5,7 +5,6 @@ import traceback
 from collections import defaultdict, Counter
 
 import math
-import logging
 from io import BytesIO
 from itertools import zip_longest
 
@@ -20,7 +19,7 @@ from flask import request, jsonify, send_file
 from sqlalchemy import inspect
 import pickle
 
-from dqt_api import db, app, models
+from dqt_api import db, app, models, scheduler
 
 POPULATION_SIZE = 0
 PRECOMPUTED_COLUMN = []
@@ -47,8 +46,8 @@ def exceptions(e):
 @app.before_first_request
 def initialize(*args, **kwargs):
     """Initialize starting values."""
-
     global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
+    scheduler.scheduler.add_job(scheduler.remove_old_logs, 'interval', day_of_week=6, id='remove_old_logs')
     dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
     try:
         with open(dump_file, 'rb') as fh:
@@ -107,6 +106,7 @@ def search():
     target = request.args.get('query')
     if len(target) < 3:
         return 'Invalid search: must contain at least 3 characters.'
+    app.logger.info('Searching for: {}'.format(target))
     terms = []
     # search category
     try:
@@ -120,7 +120,7 @@ def search():
                 'itemId': None,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.info('No categories')
+        app.logger.warning('No categories')
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -133,7 +133,7 @@ def search():
                 'itemId': i.id,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.info('No items')
+        app.logger.warning('No items')
     return jsonify({'search': terms})
 
 

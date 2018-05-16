@@ -13,8 +13,8 @@ def mkdir_p(path):
     os.makedirs(path, exist_ok=True)
     return path
 
-app.config.from_pyfile(os.environ['FLASK_CONFIG_FILE'])
 
+app.config.from_pyfile(os.environ['FLASK_CONFIG_FILE'])
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
@@ -30,9 +30,12 @@ app.debug = True
 
 app.secret_key = app.config['SECRET_KEY']
 
-handler = mylogging.StaticTimedRotatingFileHandler(
-    os.path.join(app.config['LOG_DIR'], 'log_file'), "midnight", 1)
-handler.suffix = '%Y-%m-%d'
+handler = mylogging.EncryptedTimedRotatingFileHandler(
+    os.path.join(app.config['LOG_DIR'], 'log_file'),
+    app.config.get('LOG_KEY', None),
+    "midnight",
+    1
+)
 app.logger.addHandler(handler)
 
 cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
