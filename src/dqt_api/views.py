@@ -47,7 +47,7 @@ def exceptions(e):
 def initialize(*args, **kwargs):
     """Initialize starting values."""
     global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
-    scheduler.scheduler.add_job(scheduler.remove_old_logs, 'interval', day_of_week=6, id='remove_old_logs')
+    scheduler.scheduler.add_job(scheduler.remove_old_logs, 'cron', day_of_week=6, id='remove_old_logs')
     dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
     try:
         with open(dump_file, 'rb') as fh:
