@@ -2,8 +2,6 @@ import datetime
 import logging.handlers
 import logging
 import os
-import re
-from stat import ST_MTIME
 import time
 
 from Crypto.Cipher import AES

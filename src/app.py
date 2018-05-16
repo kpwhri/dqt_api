@@ -3,10 +3,8 @@ import dqt_api.models
 import dqt_api.views
 import os
 import cherrypy
-import argparse
 from dqt_api import mylogging
 from paste.translogger import TransLogger
-from flask_whooshee import Whooshee
 
 
 def mkdir_p(path):
