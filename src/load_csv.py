@@ -270,16 +270,16 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                     category=category
                 )
                 db.session.add(de)
+            with open(input_file, 'rb') as fh:
+                txt = fh.read()
+                df = models.DataFile(
+                    filename=file_name,
+                    file=txt,
+                    md5_checksum=hashlib.md5(txt).hexdigest()
+                )
+                db.session.add(df)
         else:
             raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
-    with open(input_file, 'rb') as fh:
-        txt = fh.read()
-        df = models.DataFile(
-            filename=file_name,
-            file=txt,
-            md5_checksum=hashlib.md5(txt).hexdigest()
-        )
-        db.session.add(df)
     db.session.commit()
 
 
