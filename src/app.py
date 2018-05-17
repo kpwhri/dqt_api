@@ -1,3 +1,8 @@
+"""
+Entry point for starting the application along with `__main__.py`.
+
+They're meant to be more or less identical, but there may be some differences between the two.
+"""
 import logging
 logging.basicConfig(  # troubleshoot initialization issues
     filename=r'C:\wksp\log.txt',
@@ -5,7 +10,9 @@ logging.basicConfig(  # troubleshoot initialization issues
     level=logging.DEBUG
 )
 from dqt_api import app, cors, whooshee
+# noinspection PyUnresolvedReferences
 import dqt_api.models
+# noinspection PyUnresolvedReferences
 import dqt_api.views
 import os
 import cherrypy
@@ -25,13 +32,13 @@ try:
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
-    # app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
-    # app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
     app.config['ALEMBIC'] = {
         'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
         'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
     }
-    app.config['WHOOSHEE_DIR'] = r'C:\wksp\dqt_api\src\whooshee'
+    if not app.config.get('WHOOSHEE_DIR', False):
+        app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+        app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
     app.debug = True
 
     app.secret_key = app.config['SECRET_KEY']
@@ -43,8 +50,10 @@ try:
         1
     )
     app.logger.addHandler(handler)
+    app.logger.setLevel(logging.DEBUG)
 except Exception as e:
     logging.error(e)
+
 
 cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 

@@ -1,10 +1,17 @@
 """Not really meant to be general purpose, but at least provides an example
-of how to load data from csv into the dqt format.
+of how to load data from csv into the database format.
+
+Primary entry point is `unpack_categories` which unpacks, interprets, and
+    loads the data into the database.
+
+A second entry is `add_data_dictionary` which optionally uploads a data dictionary to
+    the database. This can be accessed as a standalone module with `load_dd.py`.
 
 """
 import argparse
 import csv
 import hashlib
+import logging
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -49,6 +56,10 @@ def add_categories():
 def add_items(items, datamodel_vars, use_desc=False):
     """
     Add items to database along with their descriptions, and commit.
+    :param datamodel_vars: dict of variables stored in data_model table
+    :param use_desc: use variables that end in '_desc'
+        these already include a descriptive value rather than a numeric reference to
+        the value
     :param items: label to display for each item
     :return:
     """
@@ -78,7 +89,7 @@ def add_items(items, datamodel_vars, use_desc=False):
             res.append(None)
             pass
         else:
-            print('Missing column: {}.'.format(item))
+            logging.warning('Missing column/item: "{}".'.format(item))
             res.append(None)
 
     db.session.commit()
@@ -86,6 +97,7 @@ def add_items(items, datamodel_vars, use_desc=False):
 
 
 def line_not_empty(lst):
+    """Check if list is not empty and first value is not empty"""
     return bool(lst and lst[0])
 
 
@@ -95,7 +107,7 @@ def parse_csv(fp, datamodel_vars,
     Load csv file into database, committing after each case.
     :param datamodel_vars:
     :param items_from_data_dictionary_only:
-    :param fp:
+    :param fp: path to csv file
     :return:
     """
     items = []
@@ -113,7 +125,7 @@ def parse_csv(fp, datamodel_vars,
                     if not value.strip():  # empty/missing value: exclude
                         continue
                     if not items[j]:
-                        print('Missing column #{}: {} ({})'.format(j, items[j], value.strip()))
+                        logging.debug('Missing column #{}: {} ({})'.format(j, items[j], value.strip()))
                         continue
 
                     # pre-processing values
@@ -138,8 +150,11 @@ def parse_csv(fp, datamodel_vars,
                         try:
                             v = int(value)
                         except ValueError:
-                            pass
-                        else:
+                            if len(value) == 1:
+                                v = int(value, 36)  # if letters were used
+                            else:
+                                v = None
+                        if v is not None:
                             if v in VALUES_BY_ITEM[items[j]]:
                                 new_value = VALUES_BY_ITEM[items[j]][v]
                             elif '+' in VALUES_BY_ITEM[items[j]]:
@@ -167,7 +182,7 @@ def parse_csv(fp, datamodel_vars,
                                           item=ITEMS[items[j]].id,
                                           value=new_value.id)
                     db.session.add(var)
-                print(graph_data)
+                logging.debug('Cohort data: {}'.format(str(graph_data)))
                 db.session.add(models.DataModel(case=i,
                                                 age_bl=graph_data['age_bl'],
                                                 age_fu=graph_data['age_fu'],
@@ -176,10 +191,24 @@ def parse_csv(fp, datamodel_vars,
                                                 followup_years=int_round(graph_data['followup_years'], 1),
                                                 intake_date=graph_data['intake_date']))  # placeholder
                 db.session.commit()  # commit each case separately
-                print('Committed case #{} (stored with name {}).'.format(i + 1, i))
+                logging.info('Committed case #{} (stored with name {}).'.format(i + 1, i))
 
 
-def unpack_categories(categorization_csv, min_priority):
+def unpack_categories(categorization_csv, min_priority=0):
+    """
+    Primary entry point to move categories, items, and values into the database
+    :param categorization_csv:
+        columns:
+            * Category: category of the variable
+            * Variable description: short description of variable for hover text
+            * Variable name: program shorthand to reference variable
+            * Variable label: human-readable display label for the variable
+            * Categories: values separated by '=='
+                e.g., 1=male||2=female
+            * Priority (optional): number showing importance of variable (higher is more important)
+    :param min_priority: limit the priority by only allowing >= priorities; allow all=0
+    :return:
+    """
     global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
     with open(categorization_csv, newline='') as fh:
         reader = csv.reader(fh)
@@ -206,13 +235,16 @@ def unpack_categories(categorization_csv, min_priority):
                 COLUMN_TO_LABEL[name.lower()] = label
                 if 'categories' in header:  # these "categories" are really ITEMS
                     categories = extra[header.index('categories') - 4].strip()
-                    if categories[0] in '0123456789':
+                    if re.match(r'\w[\=\s]', categories[:2]):
                         i = models.Item(name=label,
                                         description=description,
                                         category=category_instance.id)
                         for cat in categories.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
-                            order = int(order)
+                            try:  # numbers first
+                                order = int(order)
+                            except ValueError:  # letters appear after numbers
+                                order = int(order, 36)
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
                             VALUES_BY_ITEM[name.lower()][order] = v
@@ -233,13 +265,14 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                         descript_col, value_column, **kwargs):
     """
 
-    :param input_files:
-    :param label_column:
-    :param name_column:
-    :param category_col:
-    :param descript_col:
-    :param value_column:
-    :param kwargs:
+    :param file_name:
+    :param input_files: xls(x) files with columns specified below
+    :param label_column: column with common name
+    :param name_column: column with variable name
+    :param category_col: if None, use sheet names as categories
+    :param descript_col: column with description of the variable
+    :param value_column: column that shows the various variables
+    :param kwargs: n/a
     :return:
     """
     for input_file in input_files:
@@ -264,21 +297,21 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                     category=category
                 )
                 db.session.add(de)
+            with open(input_file, 'rb') as fh:
+                txt = fh.read()
+                df = models.DataFile(
+                    filename=file_name,
+                    file=txt,
+                    md5_checksum=hashlib.md5(txt).hexdigest()
+                )
+                db.session.add(df)
         else:
             raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
-    with open(input_file, 'rb') as fh:
-        txt = fh.read()
-        df = models.DataFile(
-            filename=file_name,
-            file=txt,
-            md5_checksum=hashlib.md5(txt).hexdigest()
-        )
-        db.session.add(df)
-    db.session.commit()
+    db.session.commit()  # commit all files together, simplifies re-running should an error occur
 
 
 def main():
-    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+    from load_utils import parser  # data dictionary loading options
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
@@ -312,23 +345,6 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
-    # data dictionary loading options
-    parser.add_argument('--dd-input-file', nargs='+',
-                        help='Path to excel document(s) containing data dictionary.'
-                             ' Values are expected to be contained in the first table'
-                             ' in the file.')
-    parser.add_argument('--dd-file-name', default='data-dictionary.xlsx',
-                        help='Filename for downloads')
-    parser.add_argument('--dd-label-column', required=True,
-                        help='Index of label column in document')
-    parser.add_argument('--dd-category-column',
-                        help='Index of category column in document')
-    parser.add_argument('--dd-name-column',
-                        help='Index of variable name column in document')
-    parser.add_argument('--dd-description-column',
-                        help='Index of description column in document')
-    parser.add_argument('--dd-value-column',
-                        help='Index of values column in document')
 
     args, unk = parser.parse_known_args()
 
@@ -352,6 +368,7 @@ def main():
     parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
     if args.dd_input_file:
+        # optionally generate and store the data dictionary
         add_data_dictionary(
             args.dd_input_file,
             args.dd_file_name,

@@ -1,3 +1,8 @@
+"""
+Entry point for starting the application along with `app.py`.
+
+They're meant to be more or less identical, but there may be some differences between the two.
+"""
 import logging
 
 from tornado.httpserver import HTTPServer
@@ -5,7 +10,9 @@ from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
 
 from dqt_api import app, cors, whooshee
+# noinspection PyUnresolvedReferences
 import dqt_api.models
+# noinspection PyUnresolvedReferences
 import dqt_api.views
 import os
 import cherrypy
