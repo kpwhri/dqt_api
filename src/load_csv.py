@@ -4,11 +4,12 @@ of how to load data from csv into the dqt format.
 """
 import argparse
 import csv
+import hashlib
 import re
 from collections import defaultdict
 from datetime import datetime
 
-from docx import Document
+from cronkd.util.xlsx import xlsx_to_list
 
 from dqt_api import db, app, cors, whooshee
 from dqt_api import models
@@ -234,23 +235,51 @@ def unpack_categories(categorization_csv, min_priority):
     db.session.commit()
 
 
-def add_data_dictionary(input_files, label_column, name_column, category_col,
+def add_data_dictionary(input_files, file_name, label_column, name_column, category_col,
                         descript_col, value_column, **kwargs):
+    """
+
+    :param input_files:
+    :param label_column:
+    :param name_column:
+    :param category_col:
+    :param descript_col:
+    :param value_column:
+    :param kwargs:
+    :return:
+    """
     for input_file in input_files:
-        doc = Document(input_file)
-        for table in doc.tables[:1]:
-            for row in table.rows[1:]:  # first row is header
-                label = row.cells[label_column].text.lower()
-                if label in ITEMS:
-                    item = ITEMS[label]
-                    de = models.DataEntry(
-                        label=label,
-                        variable=None if name_column is None else row.cells[name_column].text.lower(),
-                        values=None if value_column is None else row.cells[value_column].text.lower(),
-                        description=item.description if descript_col is None else row.cells[descript_col].text.lower(),
-                        category=COLUMN_TO_CATEGORY[label] if category_col is None else row.cells[category_col].text.lower(),
-                    )
-                    db.session.add(de)
+        if 'xls' in input_file.split('.')[-1]:
+            if category_col:
+                columns_to_keep = [label_column, name_column, descript_col, value_column, category_col]
+            else:
+                columns_to_keep = [label_column, name_column, descript_col, value_column]
+            for label, name, descript, value, category in xlsx_to_list(
+                input_file,
+                columns_to_keep=columns_to_keep,
+                include_header=False,
+                append_sheet_name=None if category_col else 'Category'
+            ):
+                if name is None:
+                    continue
+                de = models.DataEntry(
+                    label=label,
+                    variable=name,
+                    values=value,
+                    description=descript,
+                    category=category
+                )
+                db.session.add(de)
+        else:
+            raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
+    with open(input_file, 'rb') as fh:
+        txt = fh.read()
+        df = models.DataFile(
+            filename=file_name,
+            file=txt,
+            md5_checksum=hashlib.md5(txt).hexdigest()
+        )
+        db.session.add(df)
     db.session.commit()
 
 
@@ -265,8 +294,6 @@ def main():
                         help='Use whooshee directory in BASE_DIR.')
     parser.add_argument('--csv-file',
                         help='Input csv file containing separate record per line.')
-    parser.add_argument('--only-graph-data', action='store_true', default=False,
-                        help='This part did not complete.')
     parser.add_argument('--age-bl', required=True, type=str.lower,
                         help='Variable for age (for graphing).')
     parser.add_argument('--age-fu', required=True, type=str.lower,
@@ -293,18 +320,20 @@ def main():
                              'to various locations (only "table" currently supported).')
     # data dictionary loading options
     parser.add_argument('--dd-input-file', nargs='+',
-                        help='Path to word document containing data dictionary.'
+                        help='Path to excel document(s) containing data dictionary.'
                              ' Values are expected to be contained in the first table'
                              ' in the file.')
-    parser.add_argument('--dd-label-column', type=int, required=True,
+    parser.add_argument('--dd-file-name', default='data-dictionary.xlsx',
+                        help='Filename for downloads')
+    parser.add_argument('--dd-label-column', required=True,
                         help='Index of label column in document')
-    parser.add_argument('--dd-category-column', type=int,
+    parser.add_argument('--dd-category-column',
                         help='Index of category column in document')
-    parser.add_argument('--dd-name-column', type=int,
+    parser.add_argument('--dd-name-column',
                         help='Index of variable name column in document')
-    parser.add_argument('--dd-description-column', type=int,
+    parser.add_argument('--dd-description-column',
                         help='Index of description column in document')
-    parser.add_argument('--dd-value-column', type=int,
+    parser.add_argument('--dd-value-column',
                         help='Index of values column in document')
 
     args, unk = parser.parse_known_args()
@@ -314,32 +343,30 @@ def main():
     args = parser.parse_args()
 
     unpack_categories(args.categorization_csv, args.minimum_priority)
-    if args.only_graph_data:
-        raise ValueError('Operation no longer supported.')
-    else:
-        datamodel_vars = {
-            args.age_bl: 'age_bl',
-            args.age_fu: 'age_fu',
-            args.gender: 'gender',
-            args.enrollment: 'enrollment',
-            args.intake_date: 'intake_date',
-            args.followup_years: 'followup_years'
-        }
-        if args.tab_file:
-            add_tabs(args.tab_file)
-        if args.comment_file:
-            add_comments(args.comment_file)
-        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+    datamodel_vars = {
+        args.age_bl: 'age_bl',
+        args.age_fu: 'age_fu',
+        args.gender: 'gender',
+        args.enrollment: 'enrollment',
+        args.intake_date: 'intake_date',
+        args.followup_years: 'followup_years'
+    }
+    if args.tab_file:
+        add_tabs(args.tab_file)
+    if args.comment_file:
+        add_comments(args.comment_file)
+    parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
-        if args.dd_input_file:
-            add_data_dictionary(
-                args.dd_input_file,
-                args.dd_label_column,
-                args.dd_category_column,
-                args.dd_name_column,
-                args.dd_description_column,
-                args.dd_value_column,
-            )
+    if args.dd_input_file:
+        add_data_dictionary(
+            args.dd_input_file,
+            args.dd_file_name,
+            args.dd_label_column,
+            args.dd_name_column,
+            args.dd_category_column,
+            args.dd_description_column,
+            args.dd_value_column,
+        )
 
 
 if __name__ == '__main__':

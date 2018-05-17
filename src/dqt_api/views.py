@@ -5,7 +5,7 @@ import traceback
 from collections import defaultdict, Counter
 
 import math
-import logging
+from io import BytesIO
 from itertools import zip_longest
 
 import datetime
@@ -15,11 +15,11 @@ from time import strftime
 
 import pandas as pd
 import sqlalchemy
-from flask import request, jsonify
+from flask import request, jsonify, send_file
 from sqlalchemy import inspect
 import pickle
 
-from dqt_api import db, app, models
+from dqt_api import db, app, models, scheduler
 
 POPULATION_SIZE = 0
 PRECOMPUTED_COLUMN = []
@@ -31,9 +31,9 @@ NULL_FILTER = None
 def exceptions(e):
     tb = traceback.format_exc()
     timestamp = strftime('[%Y-%b-%d %H:%M]')
-    app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
+    app.logger.error('{} {} {} {} {} 5xx INTERNAL SERVER ERROR\n{}'.format(
                      timestamp, request.remote_addr, request.method,
-                     request.scheme, request.full_path, tb)
+                     request.scheme, request.full_path, tb))
     try:
         response = jsonify(e.to_dict())
         response.status_code = e.status_code
@@ -46,8 +46,8 @@ def exceptions(e):
 @app.before_first_request
 def initialize(*args, **kwargs):
     """Initialize starting values."""
-
     global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
+    scheduler.scheduler.add_job(scheduler.remove_old_logs, 'cron', day_of_week=6, id='remove_old_logs')
     dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
     try:
         with open(dump_file, 'rb') as fh:
@@ -106,6 +106,7 @@ def search():
     target = request.args.get('query')
     if len(target) < 3:
         return 'Invalid search: must contain at least 3 characters.'
+    app.logger.info('Searching for: {}'.format(target))
     terms = []
     # search category
     try:
@@ -119,7 +120,7 @@ def search():
                 'itemId': None,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.info('No categories')
+        app.logger.warning('No categories')
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -132,7 +133,7 @@ def search():
                 'itemId': i.id,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.info('No items')
+        app.logger.warning('No items')
     return jsonify({'search': terms})
 
 
@@ -258,7 +259,8 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    (subject_counts, sex_data_bl, sex_data_fu,
+    (subject_counts, sex_data_bl, 
+     sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
         # 'age_bl': sex_data_bl,
@@ -274,16 +276,16 @@ def api_get_dictionary():
     lst = []
     prev_variable = None
     for de in models.DataEntry.query:
-        if de.variable != prev_variable:
-            prev_variable = de.variable
+        if de.category != prev_variable:
+            prev_variable = de.category
             lst.append({
                 'id': de.id,
-                'name': de.variable,
+                'name': de.category,
                 'data': []
             })
         lst[-1]['data'].append(
             {'label': de.label,
-             'category': de.category,
+             'category': de.variable,
              'description': de.description,
              'values': de.values or ''
              }
@@ -730,4 +732,26 @@ def get_comments(component):
         'comments': comments,
         'mask': app.config['MASK'],
         'cohortTitle': app.config.get('COHORT_TITLE', '')
+    })
+
+
+@app.route('/api/data/dictionary/get', methods=['GET'])
+def get_data_dictionary():
+    """Get excel file"""
+    df = models.DataFile.query.order_by('-id').first()
+    return send_file(BytesIO(df.file),
+                     mimetype='application/vnd.ms-excel',
+                     attachment_filename=df.filename,
+                     as_attachment=True)
+
+
+@app.route('/api/data/dictionary/meta', methods=['GET'])
+def get_data_dictionary_meta():
+    """Get checksums"""
+    df = models.DataFile.query.order_by('-id').first()
+    return jsonify({
+        'checksums': [{
+            'type': 'md5',
+            'value': df.md5_checksum
+        }]
     })

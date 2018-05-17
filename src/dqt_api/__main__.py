@@ -1,3 +1,5 @@
+import logging
+
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
@@ -32,10 +34,14 @@ def prepare_config(debug=False, whooshee_dir=False):
 
     app.secret_key = app.config['SECRET_KEY']
 
-    handler = mylogging.StaticTimedRotatingFileHandler(
-        os.path.join(app.config['LOG_DIR'], 'log_file'), "midnight", 1)
-    handler.suffix = '%Y-%m-%d'
+    handler = mylogging.EncryptedTimedRotatingFileHandler(
+        os.path.join(app.config['LOG_DIR'], 'log_file'),
+        app.config.get('LOG_KEY', None),
+        "midnight",
+        1
+    )
     app.logger.addHandler(handler)
+    app.logger.setLevel(logging.DEBUG)
 
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 
