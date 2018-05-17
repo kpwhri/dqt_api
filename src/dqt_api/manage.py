@@ -1,3 +1,15 @@
+"""
+Wrapper for interacting with the database. Use something like `python manage.py <options>`.
+
+Most used:
+
+1. When refreshing data (these do not drop the UserData table)
+    * drop
+    * create
+2. When just wanting to populate random data for test purposes:
+    * load
+    * overload
+"""
 import argparse
 import random
 

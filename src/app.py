@@ -1,3 +1,8 @@
+"""
+Entry point for starting the application along with `__main__.py`.
+
+They're meant to be more or less identical, but there may be some differences between the two.
+"""
 import logging
 
 from dqt_api import app, cors, whooshee

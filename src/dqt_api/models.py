@@ -1,3 +1,7 @@
+"""
+SQLAlchemy-style models for building backend database.
+"""
+
 from datetime import datetime
 
 from dqt_api import db, whooshee

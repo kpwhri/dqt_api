@@ -1,10 +1,17 @@
 """Not really meant to be general purpose, but at least provides an example
-of how to load data from csv into the dqt format.
+of how to load data from csv into the database format.
+
+Primary entry point is `unpack_categories` which unpacks, interprets, and
+    loads the data into the database.
+
+A second entry is `add_data_dictionary` which optionally uploads a data dictionary to
+    the database. This can be accessed as a standalone module with `load_dd.py`.
 
 """
 import argparse
 import csv
 import hashlib
+import logging
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -49,6 +56,10 @@ def add_categories():
 def add_items(items, datamodel_vars, use_desc=False):
     """
     Add items to database along with their descriptions, and commit.
+    :param datamodel_vars: dict of variables stored in data_model table
+    :param use_desc: use variables that end in '_desc'
+        these already include a descriptive value rather than a numeric reference to
+        the value
     :param items: label to display for each item
     :return:
     """
@@ -78,7 +89,7 @@ def add_items(items, datamodel_vars, use_desc=False):
             res.append(None)
             pass
         else:
-            print('Missing column: {}.'.format(item))
+            logging.warning('Missing column/item: "{}".'.format(item))
             res.append(None)
 
     db.session.commit()
@@ -86,6 +97,7 @@ def add_items(items, datamodel_vars, use_desc=False):
 
 
 def line_not_empty(lst):
+    """Check if list is not empty and first value is not empty"""
     return bool(lst and lst[0])
 
 
@@ -95,7 +107,7 @@ def parse_csv(fp, datamodel_vars,
     Load csv file into database, committing after each case.
     :param datamodel_vars:
     :param items_from_data_dictionary_only:
-    :param fp:
+    :param fp: path to csv file
     :return:
     """
     items = []
@@ -113,7 +125,7 @@ def parse_csv(fp, datamodel_vars,
                     if not value.strip():  # empty/missing value: exclude
                         continue
                     if not items[j]:
-                        print('Missing column #{}: {} ({})'.format(j, items[j], value.strip()))
+                        logging.debug('Missing column #{}: {} ({})'.format(j, items[j], value.strip()))
                         continue
 
                     # pre-processing values
@@ -170,7 +182,7 @@ def parse_csv(fp, datamodel_vars,
                                           item=ITEMS[items[j]].id,
                                           value=new_value.id)
                     db.session.add(var)
-                print(graph_data)
+                logging.debug('Cohort data: {}'.format(str(graph_data)))
                 db.session.add(models.DataModel(case=i,
                                                 age_bl=graph_data['age_bl'],
                                                 age_fu=graph_data['age_fu'],
@@ -179,10 +191,24 @@ def parse_csv(fp, datamodel_vars,
                                                 followup_years=int_round(graph_data['followup_years'], 1),
                                                 intake_date=graph_data['intake_date']))  # placeholder
                 db.session.commit()  # commit each case separately
-                print('Committed case #{} (stored with name {}).'.format(i + 1, i))
+                logging.info('Committed case #{} (stored with name {}).'.format(i + 1, i))
 
 
-def unpack_categories(categorization_csv, min_priority):
+def unpack_categories(categorization_csv, min_priority=0):
+    """
+    Primary entry point to move categories, items, and values into the database
+    :param categorization_csv:
+        columns:
+            * Category: category of the variable
+            * Variable description: short description of variable for hover text
+            * Variable name: program shorthand to reference variable
+            * Variable label: human-readable display label for the variable
+            * Categories: values separated by '=='
+                e.g., 1=male||2=female
+            * Priority (optional): number showing importance of variable (higher is more important)
+    :param min_priority: limit the priority by only allowing >= priorities; allow all=0
+    :return:
+    """
     global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
     with open(categorization_csv, newline='') as fh:
         reader = csv.reader(fh)
@@ -239,6 +265,7 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                         descript_col, value_column, **kwargs):
     """
 
+    :param file_name:
     :param input_files: xls(x) files with columns specified below
     :param label_column: column with common name
     :param name_column: column with variable name
