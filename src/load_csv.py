@@ -137,8 +137,11 @@ def parse_csv(fp, datamodel_vars,
                         try:
                             v = int(value)
                         except ValueError:
-                            pass
-                        else:
+                            if len(value) == 1:
+                                v = int(value, 36)  # if letters were used
+                            else:
+                                v = None
+                        if v is not None:
                             if v in VALUES_BY_ITEM[items[j]]:
                                 new_value = VALUES_BY_ITEM[items[j]][v]
                             elif '+' in VALUES_BY_ITEM[items[j]]:
@@ -205,13 +208,16 @@ def unpack_categories(categorization_csv, min_priority):
                 COLUMN_TO_LABEL[name.lower()] = label
                 if 'categories' in header:  # these "categories" are really ITEMS
                     categories = extra[header.index('categories') - 4].strip()
-                    if categories[0] in '0123456789':
+                    if re.match(r'\w[\=\s]', categories[:2]):
                         i = models.Item(name=label,
                                         description=description,
                                         category=category_instance.id)
                         for cat in categories.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
-                            order = int(order)
+                            try:  # numbers first
+                                order = int(order)
+                            except ValueError:  # letters appear after numbers
+                                order = int(order, 36)
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
                             VALUES_BY_ITEM[name.lower()][order] = v
