@@ -12,3 +12,5 @@ AGE_MIN = 30  # minimum age to show (everything below will be shown as <=30)
 ORIGINS = ['*']  # best to supply a specific URL
 COHORT_TITLE = 'My Data'
 UPDATE_DATE = 'January 2020'
+# optional, if you don't want in default location when running app.py; no effect from __main__.py
+WHOOSHEE_DIR = r'C:\data\config\whooshee'

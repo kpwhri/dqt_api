@@ -21,13 +21,13 @@ app.config.from_pyfile(os.environ['FLASK_CONFIG_FILE'])
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
 app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
-# app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
-# app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
 app.config['ALEMBIC'] = {
     'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
     'sqlalchemy.url': app.config['SQLALCHEMY_DATABASE_URI'],
 }
-app.config['WHOOSHEE_DIR'] = r'C:\wksp\dqt_api\src\whooshee'
+if not app.config.get('WHOOSHEE_DIR', False):
+    app.config['WHOOSH_BASE'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
+    app.config['WHOOSHEE_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'whooshee.idx'))
 app.debug = True
 
 app.secret_key = app.config['SECRET_KEY']
