@@ -1,5 +1,9 @@
+import logging
+
 from dqt_api import app, cors, whooshee
+# noinspection PyUnresolvedReferences
 import dqt_api.models
+# noinspection PyUnresolvedReferences
 import dqt_api.views
 import os
 import cherrypy
@@ -35,6 +39,7 @@ handler = mylogging.EncryptedTimedRotatingFileHandler(
     1
 )
 app.logger.addHandler(handler)
+app.logger.setLevel(logging.DEBUG)
 
 cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 

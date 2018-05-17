@@ -5,7 +5,9 @@ from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
 
 from dqt_api import app, cors, whooshee
+# noinspection PyUnresolvedReferences
 import dqt_api.models
+# noinspection PyUnresolvedReferences
 import dqt_api.views
 import os
 import cherrypy
