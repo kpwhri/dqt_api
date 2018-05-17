@@ -239,13 +239,13 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                         descript_col, value_column, **kwargs):
     """
 
-    :param input_files:
-    :param label_column:
-    :param name_column:
-    :param category_col:
-    :param descript_col:
-    :param value_column:
-    :param kwargs:
+    :param input_files: xls(x) files with columns specified below
+    :param label_column: column with common name
+    :param name_column: column with variable name
+    :param category_col: if None, use sheet names as categories
+    :param descript_col: column with description of the variable
+    :param value_column: column that shows the various variables
+    :param kwargs: n/a
     :return:
     """
     for input_file in input_files:
@@ -280,11 +280,11 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
                 db.session.add(df)
         else:
             raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
-    db.session.commit()
+    db.session.commit()  # commit all files together, simplifies re-running should an error occur
 
 
 def main():
-    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+    from load_utils import parser  # data dictionary loading options
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
@@ -318,23 +318,6 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
-    # data dictionary loading options
-    parser.add_argument('--dd-input-file', nargs='+',
-                        help='Path to excel document(s) containing data dictionary.'
-                             ' Values are expected to be contained in the first table'
-                             ' in the file.')
-    parser.add_argument('--dd-file-name', default='data-dictionary.xlsx',
-                        help='Filename for downloads')
-    parser.add_argument('--dd-label-column', required=True,
-                        help='Index of label column in document')
-    parser.add_argument('--dd-category-column',
-                        help='Index of category column in document')
-    parser.add_argument('--dd-name-column',
-                        help='Index of variable name column in document')
-    parser.add_argument('--dd-description-column',
-                        help='Index of description column in document')
-    parser.add_argument('--dd-value-column',
-                        help='Index of values column in document')
 
     args, unk = parser.parse_known_args()
 
@@ -358,6 +341,7 @@ def main():
     parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
     if args.dd_input_file:
+        # optionally generate and store the data dictionary
         add_data_dictionary(
             args.dd_input_file,
             args.dd_file_name,
