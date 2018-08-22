@@ -28,9 +28,11 @@ def mkdir_p(path):
 if not os.environ.get('FLASK_CONFIG_FILE', None):
     raise ValueError('Environment variable FLASK_CONFIG_FILE not set.')
 app.config.from_pyfile(os.environ['FLASK_CONFIG_FILE'])
+
 try:
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
+
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
     app.config['ALEMBIC'] = {
         'script_location': mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations')),
@@ -51,6 +53,7 @@ try:
     )
     app.logger.addHandler(handler)
     app.logger.setLevel(logging.DEBUG)
+    app.logger.info('Initialized logger.')
 except Exception as e:
     logging.error(e)
 
@@ -60,10 +63,11 @@ cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 try:
     whooshee.init_app(app)
     whooshee.app = app
+    app.logger.info('Initialized whooshee.')
 except Exception as e:
     print('Failed to initialize whooshee.')
     print(e)
-    logger.error(e)
+    logging.error(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
 

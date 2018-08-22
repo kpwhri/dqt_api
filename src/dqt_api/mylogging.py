@@ -97,7 +97,7 @@ class EncryptedTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandle
             if self.shouldRollover(record):
                 fp = self.doRollover()
                 self.encrypt_and_delete(fp)
-                logging.FileHandler.emit(self, record)
+            logging.FileHandler.emit(self, record)
         except Exception:
             self.handleError(record)
 
