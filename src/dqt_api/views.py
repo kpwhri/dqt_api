@@ -35,10 +35,13 @@ def exceptions(e):
                      timestamp, request.remote_addr, request.method,
                      request.scheme, request.full_path, tb))
     try:
-        response = jsonify(e.to_dict())
+        if hasattr(e, 'to_dict'):
+            response = jsonify(e.to_dict())
+        else:
+            response = jsonify(e.__dict__)
         response.status_code = e.status_code
     except AttributeError:
-        response = jsonify(e.__dict__)
+        response = jsonify({'exception': str(e.__dict__)})
         response.status_code = 500
     return response
 
@@ -404,7 +407,6 @@ def iterchain(*args, depth=2):
         for elements in element:
             for el in elements:
                 yield el
-    raise StopIteration
 
 
 def iterchain2(*args, depth=2):
@@ -413,7 +415,6 @@ def iterchain2(*args, depth=2):
             iterchain(element, depth=depth - 1)
         else:
             yield element
-    raise StopIteration
 
 
 @app.route('/api/category/add/<int:category_id>', methods=['GET'])
