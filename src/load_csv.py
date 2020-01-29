@@ -162,9 +162,9 @@ def parse_csv(fp, datamodel_vars,
                                     new_value = val
                                     break
                             if not new_value:  # found a new category which expected to be defined
-                                logger.info(f'No categorization found for {curr_item}')
+                                logger.info(f'No categorization found for `{curr_item}`: "{value}"')
                                 order = max(VALUES_BY_ITEM[curr_item].keys()) + 1
-                                logger.info(f'Adding new category to {curr_item}: {value} with order {order}')
+                                logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
                                 new_value = models.Value(name=value, order=order)
                                 VALUES[curr_item][value] = new_value
                                 db.session.add(new_value)
