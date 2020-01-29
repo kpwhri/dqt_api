@@ -6,6 +6,7 @@ from collections import defaultdict, Counter
 import logging
 
 import math
+from functools import lru_cache
 from io import BytesIO
 from itertools import zip_longest
 
@@ -100,6 +101,11 @@ def search():
     if len(target) < 3:
         return 'Invalid search: must contain at least 3 characters.'
     app.logger.info('Searching for: {}'.format(target))
+    return jsonify(_search(target))
+
+
+@lru_cache
+def _search(target):
     terms = []
     # search category
     try:
@@ -113,7 +119,7 @@ def search():
                 'itemId': None,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.warning('No categories')
+        app.logger.warning(f'Search {target} found no categories.')
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -126,10 +132,11 @@ def search():
                 'itemId': i.id,
             })
     except sqlalchemy.exc.ProgrammingError:
-        app.logger.warning('No items')
-    return jsonify({'search': terms})
+        app.logger.warning(f'Search {target} found no items')
+    return {'search': terms}
 
 
+@lru_cache(maxsize=256)
 def parse_arg_list(arg_list):
     cases = None
     no_results_flag = None
@@ -172,15 +179,19 @@ def parse_arg_list(arg_list):
     return cases, no_results_flag
 
 
-def get_age_step(df):
+@lru_cache(maxsize=32)
+def get_age_step():
     age_step = app.config.get('AGE_STEP')
     age_max = app.config.get('AGE_MAX')
     age_min = app.config.get('AGE_MIN')
     if age_step and age_max and age_min:
         return age_min, age_max, age_step  # return early
+    else:
+        ages = {x[0] for x in db.session.query(models.DataModel.age_bl).all()}
+        return _get_age_step(age_step, age_min, age_max, ages)
 
-    # ages = df['age'].unique()
-    ages = {x[0] for x in db.session.query(models.DataModel.age_bl).all()}
+
+def _get_age_step(age_step, age_min, age_max, ages):
     if not age_step:
         step = []
         prev_age = None
@@ -247,18 +258,15 @@ def api_filter_export():
 def get_update_date_text():
     update_date = app.config.get('UPDATE_DATE', None)
     if update_date:
-        return 'as of {}'.format(update_date)
+        return f'as of {update_date}'
     return ''
 
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    (subject_counts, sex_data_bl,
-     sex_data_fu,
+    (subject_counts, _, _,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
-        # 'age_bl': sex_data_bl,
-        # 'age_fu': sex_data_fu,
         'subject_counts': subject_counts,
         'age_bl_g': sex_data_bl_g,
         'age_fu_g': sex_data_fu_g,
@@ -289,6 +297,7 @@ def api_get_dictionary():
     })
 
 
+@lru_cache(maxsize=256)
 def api_filter_chart_helper(jitter=True, arg_list=None):
     def jitter_function(x):
         return jitter_value_by_date(x) if jitter else x
@@ -309,7 +318,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     )
     df = pd.DataFrame(query_to_dict(data))
     mask_value = app.config.get('MASK', 0)
-    age_min, age_max, age_step = get_age_step(df)
+    age_min, age_max, age_step = get_age_step()
     # get age counts for each sex
     age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max - age_step, age_step)]
     age_buckets.append('{}+'.format(age_max - age_step))
@@ -438,8 +447,18 @@ def chunker(iterable, chunk_size, fillvalue=None):
 
 
 def get_range_from_category(category: models.Category):
-    res = {'items': []}
-    for item in models.Item.query.filter_by(category=category.id):
+    return _get_range_from_category(category.id, category.name, category.description)
+
+
+@lru_cache(maxsize=256)
+def _get_range_from_category(category_id, category_name, category_description):
+    res = {
+        'items': [],
+        'id': category_id,
+        'name': category_name,
+        'description': category_description
+    }
+    for item in models.Item.query.filter_by(category=category_id):
         variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
         values = []
         ranges = set()
@@ -527,9 +546,6 @@ def get_range_from_category(category: models.Category):
             'values': None if ranges else values,
             'range': [transform_decimal(x) for x in ranges] if ranges else None
         })
-    res['id'] = category.id
-    res['name'] = category.name
-    res['description'] = category.description
     return res
 
 
