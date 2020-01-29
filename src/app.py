@@ -3,12 +3,11 @@ Entry point for starting the application along with `__main__.py`.
 
 They're meant to be more or less identical, but there may be some differences between the two.
 """
-import logging
-logging.basicConfig(  # troubleshoot initialization issues
-    filename=r'C:\wksp\log.txt',
-    filemode='a',
-    level=logging.DEBUG
-)
+from loguru import logger
+
+logger.add('startup-logger-{time}.log', backtrace=True, diagnose=True)
+
+from dqt_api.flask_logger import FlaskLoguru
 from dqt_api import app, cors, whooshee
 # noinspection PyUnresolvedReferences
 import dqt_api.models
@@ -16,7 +15,6 @@ import dqt_api.models
 import dqt_api.views
 import os
 import cherrypy
-from dqt_api import mylogging
 from paste.translogger import TransLogger
 
 
@@ -45,17 +43,11 @@ try:
 
     app.secret_key = app.config['SECRET_KEY']
 
-    handler = mylogging.EncryptedTimedRotatingFileHandler(
-        os.path.join(app.config['LOG_DIR'], 'log_file'),
-        app.config.get('LOG_KEY', None),
-        "midnight",
-        1
-    )
-    app.logger.addHandler(handler)
-    app.logger.setLevel(logging.DEBUG)
+    flask_logger = FlaskLoguru()
+    flask_logger.init_app(app)
     app.logger.info('Initialized logger.')
 except Exception as e:
-    logging.error(e)
+    logger.exception(e)
 
 
 cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
@@ -67,14 +59,14 @@ try:
 except Exception as e:
     print('Failed to initialize whooshee.')
     print(e)
-    logging.error(e)
+    logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
 
 app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
 cherrypy.tree.graft(app_logged, '/')
 cherrypy.tree.mount(None, '/static', config={})
-logging.debug(os.environ)
+logger.debug(os.environ)
 cherrypy.config.update(
     {
         'engine.autoreload.on': False,

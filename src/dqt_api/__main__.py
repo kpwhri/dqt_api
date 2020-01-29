@@ -20,6 +20,8 @@ import argparse
 from dqt_api import mylogging
 from paste.translogger import TransLogger
 
+from dqt_api.flask_logger import FlaskLoguru
+
 
 def mkdir_p(path):
     os.makedirs(path, exist_ok=True)
@@ -41,14 +43,8 @@ def prepare_config(debug=False, whooshee_dir=False):
 
     app.secret_key = app.config['SECRET_KEY']
 
-    handler = mylogging.EncryptedTimedRotatingFileHandler(
-        os.path.join(app.config['LOG_DIR'], 'log_file'),
-        app.config.get('LOG_KEY', None),
-        "midnight",
-        1
-    )
-    app.logger.addHandler(handler)
-    app.logger.setLevel(logging.DEBUG)
+    flask_logger = FlaskLoguru()
+    flask_logger.init_app(app)
 
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 
@@ -92,7 +88,7 @@ def run_tornado_server(port=8090):
 
 
 def main():
-    server_choices = ['cherrypy', 'tornado']
+    server_choices = ('cherrypy', 'tornado')
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--port', default=8090, type=int,
                         help='Specify port to run file on.')

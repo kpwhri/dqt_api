@@ -3,6 +3,7 @@ import random
 import string
 import traceback
 from collections import defaultdict, Counter
+import logging
 
 import math
 from io import BytesIO
@@ -16,6 +17,7 @@ from time import strftime
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify, send_file
+from loguru import logger
 from sqlalchemy import inspect
 import pickle
 
@@ -27,23 +29,10 @@ PRECOMPUTED_FILTER = None
 NULL_FILTER = None
 
 
-@app.errorhandler(Exception)
-def exceptions(e):
-    tb = traceback.format_exc()
-    timestamp = strftime('[%Y-%b-%d %H:%M]')
-    app.logger.error('{} {} {} {} {} 5xx INTERNAL SERVER ERROR\n{}'.format(
-                     timestamp, request.remote_addr, request.method,
-                     request.scheme, request.full_path, tb))
-    try:
-        if hasattr(e, 'to_dict'):
-            response = jsonify(e.to_dict())
-        else:
-            response = jsonify(e.__dict__)
-        response.status_code = e.status_code
-    except AttributeError:
-        response = jsonify({'exception': str(e.__dict__)})
-        response.status_code = 500
-    return response
+class LoguruHandler(logging.Handler):
+    def emit(self, record):
+        logger_opt = logger.opt(depth=6, exception=record.exc_info)
+        logger_opt.log(record.levelno, record.getMessage())
 
 
 @app.before_first_request
@@ -52,6 +41,7 @@ def initialize(*args, **kwargs):
     global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
     scheduler.scheduler.add_job(scheduler.remove_old_logs, 'cron', day_of_week=6, id='remove_old_logs')
     dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
+    app.logger.info('Attempting to load data from previous cache...')
     try:
         with open(dump_file, 'rb') as fh:
             POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER = pickle.load(fh)
@@ -59,21 +49,21 @@ def initialize(*args, **kwargs):
         return
     except Exception as e:
         app.logger.info('Failed to load file: {}'.format(e))
-    app.logger.warning('Initializing...')
+    app.logger.debug('Initializing...')
     POPULATION_SIZE = db.session.query(models.DataModel).count()
-    app.logger.warning('Initializing2...')
+    app.logger.debug('Initializing2...')
     PRECOMPUTED_COLUMN = get_all_categories()
-    app.logger.warning('Initializing3...')
+    app.logger.debug('Initializing3...')
     PRECOMPUTED_FILTER = api_filter_chart_helper(jitter=False)
-    app.logger.warning('Initializing4...')
+    app.logger.debug('Initializing4...')
     NULL_FILTER = remove_values(PRECOMPUTED_FILTER)
-    app.logger.warning('Finished initializing...')
+    app.logger.debug('Finished initializing...')
 
     try:
         with open(dump_file, 'wb') as fh:
             pickle.dump((POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER), fh)
     except Exception as e:
-        app.logger.warning('Failed to write to dump file: {}'.format(e))
+        app.logger.exception('Failed to write to dump file: {}'.format(e))
 
 
 def remove_values(f):
@@ -250,6 +240,7 @@ def api_filter_export():
                 filters.append('({} IN ({}))'.format(item, ', '.join(subfilters)))
             else:
                 filters.append('({} = {})'.format(item, subfilters[0]))
+    app.logger.info(f'Exporting parameters: {filters}')
     return jsonify({'filterstring': ' AND '.join(filters)})
 
 
@@ -262,7 +253,7 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
-    (subject_counts, sex_data_bl, 
+    (subject_counts, sex_data_bl,
      sex_data_fu,
      sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
     return jsonify({
