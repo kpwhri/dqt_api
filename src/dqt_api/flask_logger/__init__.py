@@ -81,7 +81,7 @@ class FlaskLoguru(object):
         config = base_config
 
         config.setdefault(log_dir, None)
-        config.setdefault(log_name, '')
+        config.setdefault(log_name, 'dqt.log')
         config.setdefault(log_rotation, 60 * 60)
         config.setdefault(log_format, '')
         config.setdefault(log_enqueue, True)

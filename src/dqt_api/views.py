@@ -1,7 +1,6 @@
 import os
 import random
 import string
-import traceback
 from collections import defaultdict, Counter
 import logging
 
@@ -13,13 +12,12 @@ from itertools import zip_longest
 import datetime
 
 import copy
-from time import strftime
 
 import pandas as pd
 import sqlalchemy
 from flask import request, jsonify, send_file
 from loguru import logger
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 import pickle
 
 from dqt_api import db, app, models, scheduler
@@ -303,7 +301,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         return jitter_value_by_date(x) if jitter else x
 
     # get set of cases
-    cases, no_results_flag = parse_arg_list(arg_list or list())
+    cases, no_results_flag = parse_arg_list(tuple(arg_list) if arg_list else tuple())
     if no_results_flag and NULL_FILTER:
         return NULL_FILTER
     if PRECOMPUTED_FILTER and (no_results_flag is False or len(cases) >= POPULATION_SIZE):
@@ -746,7 +744,7 @@ def get_comments(component):
 @app.route('/api/data/dictionary/get', methods=['GET'])
 def get_data_dictionary():
     """Get excel file"""
-    df = models.DataFile.query.order_by('-id').first()
+    df = models.DataFile.query.order_by(text('-id')).first()
     return send_file(BytesIO(df.file),
                      mimetype='application/vnd.ms-excel',
                      attachment_filename=df.filename,
@@ -756,7 +754,7 @@ def get_data_dictionary():
 @app.route('/api/data/dictionary/meta', methods=['GET'])
 def get_data_dictionary_meta():
     """Get checksums"""
-    df = models.DataFile.query.order_by('-id').first()
+    df = models.DataFile.query.order_by(text('-id')).first()
     return jsonify({
         'checksums': [{
             'type': 'md5',
