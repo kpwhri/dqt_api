@@ -20,10 +20,11 @@ from flask_alembic import Alembic
 from flask_script import Manager
 from flask_migrate import Migrate
 from flask_alembic.cli.script import manager as alembic_manager
+from loguru import logger
+
 from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-
 
 TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
     models.Variable, models.DataModel, models.Item,
@@ -170,7 +171,7 @@ def overload(category_count, item_count, subject_count=None):
             v = models.Variable(case=subject_id, item=item, value=random.choice(items[item]))
             db.session.add(v)
         db.session.commit()
-        print('Completed subject: {}'.format(subject_id))
+        logger.info('Completed subject: {}'.format(subject_id))
 
 
 def add_random_tabs():

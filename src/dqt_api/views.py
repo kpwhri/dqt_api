@@ -104,7 +104,7 @@ def search():
     return jsonify(_search(target))
 
 
-@lru_cache
+@lru_cache()
 def _search(target):
     terms = []
     # search category

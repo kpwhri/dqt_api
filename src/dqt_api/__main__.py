@@ -52,8 +52,6 @@ def prepare_config(debug=False, whooshee_dir=False):
         whooshee.init_app(app)
         whooshee.app = app  # needs to be done manually
     except Exception as e:
-        print('Failed to initialize whooshee.')
-        print(e)
         app.logger.warning('Failed to initialize whooshee.')
         app.logger.exception(e)
 

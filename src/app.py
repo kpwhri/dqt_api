@@ -57,8 +57,6 @@ try:
     whooshee.app = app
     app.logger.info('Initialized whooshee.')
 except Exception as e:
-    print('Failed to initialize whooshee.')
-    print(e)
     logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
