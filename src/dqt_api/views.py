@@ -702,6 +702,7 @@ def get_ip_address():
 @app.route('/api/tabs', methods=['GET'])
 def get_tabs():
     """Get headers and content for each page"""
+    print('hi')
     res = []
     curr = None
     c_header = None

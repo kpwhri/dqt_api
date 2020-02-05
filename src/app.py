@@ -50,7 +50,8 @@ except Exception as e:
     logger.exception(e)
 
 
-cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
+# cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
+cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
 
 try:
     whooshee.init_app(app)
@@ -64,7 +65,7 @@ except Exception as e:
 app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
 cherrypy.tree.graft(app_logged, '/')
 cherrypy.tree.mount(None, '/static', config={})
-logger.debug(os.environ)
+logger.debug(str(os.environ))
 cherrypy.config.update(
     {
         'engine.autoreload.on': False,
