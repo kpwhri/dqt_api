@@ -138,7 +138,7 @@ def _search(target):
 def parse_arg_list(arg_list):
     cases = None
     no_results_flag = None
-    for key, [val, *_] in arg_list:
+    for key, val in arg_list:
         if '~' in val:
             val = val.split('~')
             q = db.session.query(models.Variable.case).join(
@@ -262,8 +262,9 @@ def get_update_date_text():
 
 @app.route('/api/filter/chart', methods=['GET'])
 def api_filter_chart(jitter=True):
+    arg_list = tuple((key, val) for key, [val, *_] in request.args.lists())
     (subject_counts, _, _,
-     sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, request.args.lists())
+     sex_data_bl_g, sex_data_fu_g) = api_filter_chart_helper(jitter, arg_list)
     return jsonify({
         'subject_counts': subject_counts,
         'age_bl_g': sex_data_bl_g,
@@ -301,7 +302,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         return jitter_value_by_date(x) if jitter else x
 
     # get set of cases
-    cases, no_results_flag = parse_arg_list(tuple(arg_list) if arg_list else tuple())
+    cases, no_results_flag = parse_arg_list(arg_list or ())
     if no_results_flag and NULL_FILTER:
         return NULL_FILTER
     if PRECOMPUTED_FILTER and (no_results_flag is False or len(cases) >= POPULATION_SIZE):
