@@ -116,8 +116,8 @@ def _search(target):
                 'categoryId': c.id,
                 'itemId': None,
             })
-    except sqlalchemy.exc.ProgrammingError:
-        app.logger.warning(f'Search {target} found no categories.')
+    except sqlalchemy.exc.ProgrammingError as pe:
+        app.logger.warning(f'Search {target} found no categories: {pe}')
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):
@@ -129,8 +129,8 @@ def _search(target):
                 'categoryId': i.category,
                 'itemId': i.id,
             })
-    except sqlalchemy.exc.ProgrammingError:
-        app.logger.warning(f'Search {target} found no items')
+    except sqlalchemy.exc.ProgrammingError as pe:
+        app.logger.warning(f'Search {target} found no items: {pe}')
     return {'search': terms}
 
 

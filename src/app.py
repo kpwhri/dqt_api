@@ -57,6 +57,9 @@ try:
     whooshee.init_app(app)
     whooshee.app = app
     app.logger.info('Initialized whooshee.')
+    if not os.path.exists(os.path.join(app.config['WHOOSHEE_DIR'], 'category')):
+        whooshee.reindex()
+        app.logger.info('Reindexed')
 except Exception as e:
     logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
@@ -70,7 +73,7 @@ cherrypy.config.update(
     {
         'engine.autoreload.on': False,
         'log.screen': True,
-        'server.socket_port': int(os.environ['XPORT']),
+        'server.socket_port': int(os.environ.get('XPORT', '8090')),
         'server.socket_host': '0.0.0.0',
     }
 )
