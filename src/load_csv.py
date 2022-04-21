@@ -180,6 +180,7 @@ def parse_csv(fp, datamodel_vars,
                     if not new_value:  # add value if it doesn't exist
                         if value not in VALUES[curr_item]:
                             val = models.Value(name=value)
+                            logger.warning(f'Adding new value: {value} = {curr_item}')
                             VALUES[curr_item][value] = val
                             db.session.add(val)
                         new_value = VALUES[curr_item][value]
@@ -294,7 +295,12 @@ def unpack_categories(categorization_csv, min_priority=0):
                             try:  # numbers first
                                 order = int(order)
                             except ValueError:  # letters appear after numbers
-                                order = int(order, 36)
+                                try:
+                                    order = int(order, 36)
+                                except ValueError as e:
+                                    logger.exception(e)
+                                    logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
+                                    raise
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
                             VALUES_BY_ITEM[row.name][order] = v
@@ -404,6 +410,7 @@ def main():
 
     logger.add('load_csv_{time}.log', backtrace=True, diagnose=True)
 
+    logger.debug('Unpacking categories.')
     unpack_categories(args.categorization_csv, args.minimum_priority)
     datamodel_vars = {
         args.age_bl: 'age_bl',
@@ -414,13 +421,17 @@ def main():
         args.followup_years: 'followup_years'
     }
     if args.tab_file:
+        logger.debug('Adding tabs from file.')
         add_tabs(args.tab_file)
     if args.comment_file:
+        logger.debug('Adding comments from file.')
         add_comments(args.comment_file)
+    logger.debug('Parsing CSV file.')
     parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
     if args.dd_input_file:
         # optionally generate and store the data dictionary
+        logger.debug('Adding data dictionary.')
         add_data_dictionary(
             args.dd_input_file,
             args.dd_file_name,
