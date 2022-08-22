@@ -760,6 +760,6 @@ def get_data_dictionary_meta():
     return jsonify({
         'checksums': [{
             'type': 'md5',
-            'value': df.md5_checksum
+            'value': 'Unavailable' if df is None else df.md5_checksum,
         }]
     })

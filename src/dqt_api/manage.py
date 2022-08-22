@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
-    parser.add_argument('--method', choices=('manage', 'create', 'load', 'delete',
+    parser.add_argument('--method', choices=('manage', 'create', 'createuserdata', 'load', 'delete',
                                              'overload', 'reindex', 'tabs', 'drop',
                                              'recreate'),
                         default='manage',
@@ -62,6 +62,8 @@ def main():
         manage()
     elif args.method == 'create':
         create()
+    elif args.method == 'createuserdata':
+        create_user_data()
     elif args.method == 'drop':
         drop_all()
     elif args.method == 'recreate':
@@ -115,6 +117,15 @@ def create():
     db.metadata.create_all(
         db.engine,
         tables=TABLES_EXC_USERDATA_ATTR
+    )
+    alembic = Alembic()
+    alembic.init_app(app)
+
+
+def create_user_data():
+    db.metadata.create_all(
+        db.engine,
+        tables=[models.UserData.__table__],
     )
     alembic = Alembic()
     alembic.init_app(app)
