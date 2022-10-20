@@ -118,6 +118,7 @@ def _search(target):
             })
     except sqlalchemy.exc.ProgrammingError as pe:
         app.logger.warning(f'Search {target} found no categories: {pe}')
+        raise pe
     # search item
     try:
         for i in models.Item.query.whooshee_search(target, order_by_relevance=-1):

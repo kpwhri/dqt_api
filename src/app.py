@@ -50,22 +50,23 @@ logger.info('Initialized database.')
 # cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
 
+# noinspection PyUnresolvedReferences
+import dqt_api.models
+# noinspection PyUnresolvedReferences
+import dqt_api.views
+
 try:
     whooshee.init_app(app)
     whooshee.app = app
     app.logger.info('Initialized whooshee.')
     if not os.path.exists(os.path.join(app.config['WHOOSHEE_DIR'], 'category')):
-        whooshee.reindex()
+        with app.app_context():
+            whooshee.reindex()
         app.logger.info('Reindexed')
 except Exception as e:
     logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
-
-# noinspection PyUnresolvedReferences
-import dqt_api.models
-# noinspection PyUnresolvedReferences
-import dqt_api.views
 
 app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
 cherrypy.tree.graft(app_logged, '/')

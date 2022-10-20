@@ -47,12 +47,18 @@ def prepare_config(debug=False, whooshee_dir=False):
 
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 
+    # noinspection PyUnresolvedReferences
+    import dqt_api.models
+    # noinspection PyUnresolvedReferences
+    import dqt_api.views
+
     try:
         whooshee.init_app(app)
         whooshee.app = app  # needs to be done manually
         app.logger.info('Initialized whooshee.')
         if not os.path.exists(os.path.join(app.config['WHOOSHEE_DIR'], 'category')):
-            whooshee.reindex()
+            with app.app_context():
+                whooshee.reindex()
             app.logger.info('Reindexed')
     except Exception as e:
         app.logger.warning('Failed to initialize whooshee.')
@@ -107,11 +113,6 @@ def main():
     app.config.from_pyfile(args.config)
     prepare_config(args.debug, args.whooshee_dir)
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
-
-    # noinspection PyUnresolvedReferences
-    import dqt_api.models
-    # noinspection PyUnresolvedReferences
-    import dqt_api.views
 
     if args.server == 'cherrypy':
         run_cherrypy_server(port=args.port)

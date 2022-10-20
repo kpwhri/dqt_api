@@ -7,7 +7,6 @@ flask_alembic
 flask_migrate
 flask_script
 flask_sqlalchemy
-flask_whooshee
 paste
 sqlalchemy
 tornado
