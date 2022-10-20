@@ -9,7 +9,7 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
 
-from dqt_api import app, cors, whooshee
+from dqt_api import app, db, cors, whooshee
 # noinspection PyUnresolvedReferences
 import dqt_api.models
 # noinspection PyUnresolvedReferences
@@ -45,6 +45,8 @@ def prepare_config(debug=False, whooshee_dir=False):
 
     flask_logger = FlaskLoguru()
     flask_logger.init_app(app)
+
+    db.init_app(app)
 
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 

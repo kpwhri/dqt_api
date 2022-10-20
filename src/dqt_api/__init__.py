@@ -5,5 +5,5 @@ from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 whooshee = Whooshee()
-db = SQLAlchemy(app)
+db = SQLAlchemy()
 cors = CORS()
