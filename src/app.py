@@ -8,7 +8,7 @@ from loguru import logger
 logger.add('startup-logger-{time}.log', backtrace=True, diagnose=True)
 
 from dqt_api.flask_logger import FlaskLoguru
-from dqt_api import app, cors, whooshee
+from dqt_api import app, db, cors, whooshee
 # noinspection PyUnresolvedReferences
 import dqt_api.models
 # noinspection PyUnresolvedReferences
@@ -42,6 +42,8 @@ try:
     app.debug = True
 
     app.secret_key = app.config['SECRET_KEY']
+
+    db.init_app(app)
 
     flask_logger = FlaskLoguru()
     flask_logger.init_app(app)
