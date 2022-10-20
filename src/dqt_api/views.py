@@ -518,7 +518,7 @@ def _get_range_from_category(category_id, category_name, category_description):
             ideal_rate = app.config.get('IDEAL_BUCKET_COUNT', 20)
             current_rounding = ranges[2] * 2
             segments = (ranges[1] - ranges[0]) / ranges[2]
-            if segments() > ideal_rate:
+            if segments > ideal_rate:
                 if '.' in str(ranges[2]):
                     if current_rounding > 1:
                         current_rounding = int(current_rounding)
