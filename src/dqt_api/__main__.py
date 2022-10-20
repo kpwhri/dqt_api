@@ -10,10 +10,7 @@ from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
 
 from dqt_api import app, db, cors, whooshee
-# noinspection PyUnresolvedReferences
-import dqt_api.models
-# noinspection PyUnresolvedReferences
-import dqt_api.views
+
 import os
 import cherrypy
 import argparse
@@ -53,6 +50,10 @@ def prepare_config(debug=False, whooshee_dir=False):
     try:
         whooshee.init_app(app)
         whooshee.app = app  # needs to be done manually
+        app.logger.info('Initialized whooshee.')
+        if not os.path.exists(os.path.join(app.config['WHOOSHEE_DIR'], 'category')):
+            whooshee.reindex()
+            app.logger.info('Reindexed')
     except Exception as e:
         app.logger.warning('Failed to initialize whooshee.')
         app.logger.exception(e)
@@ -106,6 +107,12 @@ def main():
     app.config.from_pyfile(args.config)
     prepare_config(args.debug, args.whooshee_dir)
     cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
+
+    # noinspection PyUnresolvedReferences
+    import dqt_api.models
+    # noinspection PyUnresolvedReferences
+    import dqt_api.views
+
     if args.server == 'cherrypy':
         run_cherrypy_server(port=args.port)
     elif args.server == 'tornado':

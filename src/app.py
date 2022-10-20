@@ -9,10 +9,6 @@ logger.add('startup-logger-{time}.log', backtrace=True, diagnose=True)
 
 from dqt_api.flask_logger import FlaskLoguru
 from dqt_api import app, db, cors, whooshee
-# noinspection PyUnresolvedReferences
-import dqt_api.models
-# noinspection PyUnresolvedReferences
-import dqt_api.views
 import os
 import cherrypy
 from paste.translogger import TransLogger
@@ -43,15 +39,14 @@ try:
 
     app.secret_key = app.config['SECRET_KEY']
 
-    db.init_app(app)
-
     flask_logger = FlaskLoguru()
     flask_logger.init_app(app)
     app.logger.info('Initialized logger.')
 except Exception as e:
     logger.exception(e)
 
-
+db.init_app(app)
+logger.info('Initialized database.')
 # cors.init_app(app, resources={r'/api/*': {'origins': app.config['ORIGINS']}})
 cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
 
@@ -66,6 +61,11 @@ except Exception as e:
     logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
+
+# noinspection PyUnresolvedReferences
+import dqt_api.models
+# noinspection PyUnresolvedReferences
+import dqt_api.views
 
 app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
 cherrypy.tree.graft(app_logged, '/')
