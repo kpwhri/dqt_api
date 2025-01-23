@@ -18,51 +18,14 @@ import sqlalchemy
 from flask import request, jsonify, send_file
 from loguru import logger
 from sqlalchemy import inspect, text
-import pickle
 
-from dqt_api import db, app, models, scheduler
-
-POPULATION_SIZE = 0
-PRECOMPUTED_COLUMN = []
-PRECOMPUTED_FILTER = None
-NULL_FILTER = None
+from dqt_api import db, app, models
 
 
 class LoguruHandler(logging.Handler):
     def emit(self, record):
         logger_opt = logger.opt(depth=6, exception=record.exc_info)
         logger_opt.log(record.levelno, record.getMessage())
-
-
-@app.before_first_request
-def initialize(*args, **kwargs):
-    """Initialize starting values."""
-    global POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER
-    scheduler.scheduler.add_job(scheduler.remove_old_logs, 'cron', day_of_week=6, id='remove_old_logs')
-    dump_file = os.path.join(app.config['BASE_DIR'], 'dump.pkl')
-    app.logger.info('Attempting to load data from previous cache...')
-    try:
-        with open(dump_file, 'rb') as fh:
-            POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER = pickle.load(fh)
-        app.logger.info('Loaded from file.')
-        return
-    except Exception as e:
-        app.logger.info('Failed to load file: {}'.format(e))
-    app.logger.debug('Initializing...')
-    POPULATION_SIZE = db.session.query(models.DataModel).count()
-    app.logger.debug('Initializing2...')
-    PRECOMPUTED_COLUMN = get_all_categories()
-    app.logger.debug('Initializing3...')
-    PRECOMPUTED_FILTER = api_filter_chart_helper(jitter=False)
-    app.logger.debug('Initializing4...')
-    NULL_FILTER = remove_values(PRECOMPUTED_FILTER)
-    app.logger.debug('Finished initializing...')
-
-    try:
-        with open(dump_file, 'wb') as fh:
-            pickle.dump((POPULATION_SIZE, PRECOMPUTED_COLUMN, PRECOMPUTED_FILTER, NULL_FILTER), fh)
-    except Exception as e:
-        app.logger.exception('Failed to write to dump file: {}'.format(e))
 
 
 def remove_values(f):
@@ -304,10 +267,10 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
-    if no_results_flag and NULL_FILTER:
-        return NULL_FILTER
-    if PRECOMPUTED_FILTER and (no_results_flag is False or len(cases) >= POPULATION_SIZE):
-        return PRECOMPUTED_FILTER
+    if no_results_flag and app.config['NULL_FILTER']:
+        return app.config['NULL_FILTER']
+    if app.config['PRECOMPUTED_FILTER'] and (no_results_flag is False or len(cases) >= app.config['POPULATION_SIZE']):
+        return app.config['PRECOMPUTED_FILTER']
 
     # get data for graphs
     data = iterchain(
@@ -346,9 +309,9 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     subject_counts = [
                          {'header': 'Total {} Population {}'.format(app.config.get('COHORT_TITLE', ''),
                                                                     get_update_date_text()),
-                          'value': POPULATION_SIZE},
+                          'value': app.config['POPULATION_SIZE']},
                          {'header': 'Current Selection',
-                          'value': min(selected_subjects, POPULATION_SIZE)},
+                          'value': min(selected_subjects, app.config['POPULATION_SIZE'])},
                      ] + enroll_data + sex_counts_bl + [
                          {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
@@ -379,13 +342,14 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
                 'datasets': []}
     sex_counts = []
     for label, age_df in df[['sex', age_var]].groupby(['sex']):
+        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
         sex_data['datasets'].append({
-            'label': label.capitalize(),
+            'label': label,
             'data': histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
                               mask=mask_value, jitter_function=jitter_function)
         })
         sex_counts.append({
-            'header': '- {}'.format(label.capitalize()),
+            'header': '- {}'.format(label),
             'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
         })
     return sex_counts, sex_data
@@ -565,8 +529,8 @@ def add_all_categories():
 
 
 def get_all_categories():
-    if PRECOMPUTED_COLUMN:
-        return PRECOMPUTED_COLUMN
+    if app.config['PRECOMPUTED_COLUMN']:
+        return app.config['PRECOMPUTED_COLUMN']
     categories = []
     for category in db.session.query(models.Category).order_by(models.Category.order).all():
         cat = models.Category.query.filter_by(id=category.id).first()

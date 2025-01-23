@@ -14,12 +14,14 @@ import whoosh.qparser
 from whoosh.filedb.filestore import RamStorage
 
 from flask import current_app
-from flask_sqlalchemy import BaseQuery
+from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
 from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm import Query as SQLAQuery
 from sqlalchemy.types import Integer as SQLInteger, BigInteger as SQLBigInteger
 
+
+db = SQLAlchemy()
 
 
 INSERT_KWD = 'insert'
@@ -43,7 +45,7 @@ def _assure_dirs_exists(path):
         if err.errno != errno.EEXIST:
             raise
 
-class WhoosheeQuery(BaseQuery):
+class WhoosheeQuery(db.Query):
     """An override for SQLAlchemy query used to do fulltext search."""
 
     def whooshee_search(self, search_string, group=whoosh.qparser.OrGroup, whoosheer=None,
@@ -167,8 +169,6 @@ class AbstractWhoosheer(object):
         :param match_substrings: ``True`` if you want to match substrings,
                                  ``False`` otherwise.
         """
-        if sys.version < '3' and not isinstance(search_string, unicode):
-            search_string = search_string.decode('utf-8')
         s = search_string.strip()
         # we don't want stars from user
         s = s.replace('*', '')
@@ -274,7 +274,7 @@ class Whooshee(object):
                     pass
 
                 # ensure there can be a stable MRO
-                elif query_class not in (BaseQuery, SQLAQuery, WhoosheeQuery):
+                elif query_class not in (db.Query, SQLAQuery, WhoosheeQuery):
                     query_class_name = query_class.__name__
                     model.query_class = type(
                         "Whooshee{}".format(query_class_name), (query_class, self.query), {}
@@ -299,10 +299,7 @@ class Whooshee(object):
             def _assign_primary(cls, primary, primary_is_numeric, attrs, model):
                 attrs[primary] = getattr(model, primary)
                 if not primary_is_numeric:
-                    if sys.version < '3':
-                        attrs[primary] = unicode(attrs[primary])
-                    else:
-                        attrs[primary] = str(attrs[primary])
+                    attrs[primary] = str(attrs[primary])
 
 
         mwh = ModelWhoosheer
@@ -339,10 +336,7 @@ class Whooshee(object):
                 for f in index_fields:
                     attrs[f] = getattr(model, f)
                     if not isinstance(attrs[f], int):
-                        if sys.version < '3':
-                            attrs[f] = unicode(attrs[f])
-                        else:
-                            attrs[f] = str(attrs[f])
+                        attrs[f] = str(attrs[f])
                 writer.update_document(**attrs)
 
             @classmethod
@@ -352,10 +346,7 @@ class Whooshee(object):
                 for f in index_fields:
                     attrs[f] = getattr(model, f)
                     if not isinstance(attrs[f], int):
-                        if sys.version < '3':
-                            attrs[f] = unicode(attrs[f])
-                        else:
-                            attrs[f] = str(attrs[f])
+                        attrs[f] = str(attrs[f])
                 writer.add_document(**attrs)
 
             @classmethod

@@ -3,8 +3,6 @@ Entry point for starting the application along with `app.py`.
 
 They're meant to be more or less identical, but there may be some differences between the two.
 """
-import logging
-
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.wsgi import WSGIContainer
@@ -18,6 +16,7 @@ from dqt_api import mylogging
 from paste.translogger import TransLogger
 
 from dqt_api.flask_logger import FlaskLoguru
+from dqt_api.load_globals import initialize
 
 
 def mkdir_p(path):
@@ -63,6 +62,10 @@ def prepare_config(debug=False, whooshee_dir=False):
     except Exception as e:
         app.logger.warning('Failed to initialize whooshee.')
         app.logger.exception(e)
+
+    # initialize filters, etc.
+    with app.app_context():
+        initialize(app, db)
 
 
 def run_cherrypy_server(port=8090):

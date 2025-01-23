@@ -5,6 +5,8 @@ They're meant to be more or less identical, but there may be some differences be
 """
 from loguru import logger
 
+from dqt_api.load_globals import initialize
+
 logger.add('startup-logger-{time}.log', backtrace=True, diagnose=True)
 
 from dqt_api.flask_logger import FlaskLoguru
@@ -67,6 +69,9 @@ except Exception as e:
     logger.exception(e)
     app.logger.warning('Failed to initialize whooshee.')
     app.logger.exception(e)
+
+with app.app_context():
+    initialize(app, db)
 
 app_logged = TransLogger(app, logger=app.logger, setup_console_handler=False)
 cherrypy.tree.graft(app_logged, '/')
