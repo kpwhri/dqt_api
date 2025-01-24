@@ -40,6 +40,11 @@ def int_round(x, base=5):
     return int(base * round(float(x) / base))
 
 
+def int_floor(x, base=5):
+    """Round number down to the nearest 'base' """
+    return int(float(x) - (float(x) % base))
+
+
 def add_categories():
     """
     Add categories to database based on the specification in
@@ -133,16 +138,16 @@ def parse_csv(fp, datamodel_vars,
                     # pre-processing values
                     # convert date to year
                     if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
-                        value = str(int_round(value[-4:]))
+                        value = str(int_floor(value[-4:]))
                     elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
-                        value = int_round(value[-2:])
+                        value = int_floor(value[-2:])
                         if value <= curr_year:
                             value = '20{}'.format(value)
                         else:
                             value = '19{}'.format(value)
                     elif 'age' in curr_item or 'year' in curr_item:
                         try:
-                            value = str(int_round(value))
+                            value = str(int_floor(value))
                         except ValueError:
                             pass
 
