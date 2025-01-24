@@ -267,9 +267,9 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
-    if no_results_flag and app.config['NULL_FILTER']:
+    if no_results_flag and app.config.get('NULL_FILTER', None):
         return app.config['NULL_FILTER']
-    if app.config['PRECOMPUTED_FILTER'] and (no_results_flag is False or len(cases) >= app.config['POPULATION_SIZE']):
+    if app.config.get('PRECOMPUTED_FILTER', None) and (no_results_flag is False or len(cases) >= app.config['POPULATION_SIZE']):
         return app.config['PRECOMPUTED_FILTER']
 
     # get data for graphs
@@ -280,6 +280,8 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         depth=3
     )
     df = pd.DataFrame(query_to_dict(data))
+    import random
+    df.to_csv(f'data_{random.randint(0, 1000)}.csv', index=False)
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step()
     # get age counts for each sex
@@ -529,7 +531,7 @@ def add_all_categories():
 
 
 def get_all_categories():
-    if app.config['PRECOMPUTED_COLUMN']:
+    if app.config.get('PRECOMPUTED_COLUMN', None):
         return app.config['PRECOMPUTED_COLUMN']
     categories = []
     for category in db.session.query(models.Category).order_by(models.Category.order).all():
