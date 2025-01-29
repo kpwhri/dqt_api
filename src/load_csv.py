@@ -15,6 +15,7 @@ import re
 from collections import defaultdict, namedtuple
 from datetime import datetime
 import sqlalchemy as sqla
+from pandas import to_numeric
 
 from utils import xlsx_to_list
 
@@ -33,6 +34,43 @@ VALUES = defaultdict(dict)  # name -> item -> models.Value
 VALUES_BY_ITEM = defaultdict(dict)  # item -> id -> models.Value; for pre-defined ids
 
 ITEMS = {}  # name -> models.Item
+
+
+def clean_number(value):
+    """Remove spaces and dollar signs to convert to numeric"""
+    if isinstance(value, (int, float)):
+        return value
+    return value.replace(',', '').replace('$', '').strip()
+
+
+def create_function_for_range(value: str):
+    """Create function that defines a particular value/expression"""
+    # remove any problems for ints
+    value = clean_number(value)
+    to_numeric_func = float if '.' in value else int
+    if value[-1] == '+':  # gte
+        value = to_numeric_func(value.rstrip('+'))
+        return lambda x: to_numeric_func(clean_number(x)) >= value
+    elif value[-1] == '-':  # lte
+        value = to_numeric_func(value.rstrip('-'))
+        return lambda x: to_numeric_func(clean_number(x)) <= value
+    elif value.startswith('>='):
+        value = to_numeric_func(value[2:])
+        return lambda x: to_numeric_func(clean_number(x)) >= value
+    elif value.startswith('<='):
+        value = to_numeric_func(value[2:])
+        return lambda x: to_numeric_func(clean_number(x)) <= value
+    elif value.startswith('>'):
+        value = to_numeric_func(value[1:])
+        return lambda x: to_numeric_func(clean_number(x)) > value
+    elif value.startswith('<'):
+        value = to_numeric_func(value[1:])
+        return lambda x: to_numeric_func(clean_number(x)) < value
+    elif '-' in value:  # assumes end is EXCLUSIVE
+        v1, v2 = value.split('-')
+        v1 = to_numeric(clean_number(v1))
+        v2 = to_numeric(clean_number(v2))
+        return lambda x: v1 <= to_numeric_func(clean_number(x)) < v2
 
 
 def int_round(x, base=5):
@@ -107,6 +145,11 @@ def line_not_empty(lst):
     return bool(lst and lst[0])
 
 
+def get_max_values_by_item(value, item):
+    max_val = max(VALUES_BY_ITEM[item].keys())
+    min_val = min(VALUES_BY_ITEM[item].keys())
+
+
 def parse_csv(fp, datamodel_vars,
               items_from_data_dictionary_only):
     """
@@ -161,24 +204,32 @@ def parse_csv(fp, datamodel_vars,
                                 v = int(value, 36)  # if letters were used
                             else:
                                 v = None
-                        if v is None:  # no categorization/numical found, maybe string value?
+                        if v is None:  # no categorization/numeric found, maybe string value?
                             for val in VALUES_BY_ITEM[curr_item].values():
                                 if val.name == value:
                                     new_value = val
                                     break
                             if not new_value:  # found a new category which expected to be defined
-                                logger.warning(f'No categorization found for `{curr_item}`: "{value}"')
-                                order = max(VALUES_BY_ITEM[curr_item].keys()) + 1
-                                logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
-                                new_value = models.Value(name=value, order=order)
-                                VALUES[curr_item][value] = new_value
-                                db.session.add(new_value)
-                                VALUES_BY_ITEM[curr_item][order] = new_value
-                        else:
+                                # perhaps this is in a range
+                                for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
+                                    if func(v):
+                                        new_value = func_value
+                                if not new_value:
+                                    # not sure...let's log and add as extra var
+                                    logger.warning(f'No categorization found for `{curr_item}`: "{value}"')
+                                    order = max(VALUES_BY_ITEM[curr_item].keys()) + 1
+                                    logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
+                                    new_value = models.Value(name=value, order=order)
+                                    VALUES[curr_item][value] = new_value
+                                    db.session.add(new_value)
+                                    VALUES_BY_ITEM[curr_item][order] = new_value
+                        else:  # found int value
                             if v in VALUES_BY_ITEM[curr_item]:
                                 new_value = VALUES_BY_ITEM[curr_item][v]
                             elif '+' in VALUES_BY_ITEM[curr_item]:
-                                new_value = VALUES_BY_ITEM[curr_item]['+']
+                                for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
+                                    if func(v):
+                                        new_value = func_value
                     elif items_from_data_dictionary_only:
                         continue  # skip if user only wants values from data dictionary
                     # don't include this as else because if-clause needs to go here
@@ -296,7 +347,11 @@ def unpack_categories(categorization_csv, min_priority=0):
                                         category=category_instance.id)
                         for cat in row.categories.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
-                            value = value.lower()  # standardize all values to lowercase
+                            value = value.strip().lower()  # standardize all values to lowercase
+                            # get the categorization order
+                            if order == '.' or value == 'missing':
+                                logger.warning(f'Ignoring value for {cat}: assuming this is missing.')
+                                continue
                             try:  # numbers first
                                 order = int(order)
                             except ValueError:  # letters appear after numbers
@@ -309,8 +364,16 @@ def unpack_categories(categorization_csv, min_priority=0):
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
                             VALUES_BY_ITEM[row.name][order] = v
-                            if value[-1] == '+':
-                                VALUES_BY_ITEM[row.name]['+'] = v  # for values greater than
+                            if value[-1] in {'+', '-'} or value[0] in {'<', '>'} or '-' in value:
+                                if '+' not in VALUES_BY_ITEM[row.name]:
+                                    VALUES_BY_ITEM[row.name]['+'] = []  # for values greater than
+                                try:
+                                    func = create_function_for_range(value)
+                                except ValueError:
+                                    pass
+                                else:
+                                    if func is not None:
+                                        VALUES_BY_ITEM[row.name]['+'].append((func, v))
                             db.session.commit()
                     else:
                         i = models.Item(name=row.label,

@@ -4,10 +4,11 @@ Run this file to build data dictionary only
 from dqt_api import app
 from dqt_api.__main__ import prepare_config
 from load_csv import add_data_dictionary
-from load_utils import parser
 from loguru import logger
 
 if __name__ == '__main__':
+    from load_utils import parser
+
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY, SQLALCHEMY_DATABASE_URI, '
