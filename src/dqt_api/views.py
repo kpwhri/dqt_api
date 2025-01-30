@@ -111,11 +111,11 @@ def parse_arg_list(arg_list):
                 models.Variable.item == key
             )
             if val[0] and val[1]:
-                q = q.filter(models.Value.name_numeric.between(int(val[0]), int(val[1])))
+                q = q.filter(models.Value.name_numeric.between(float(val[0]), float(val[1])))
             elif val[0]:
-                q = q.filter(models.Value.name_numeric >= int(val[0]))
+                q = q.filter(models.Value.name_numeric >= float(val[0]))
             elif val[1]:
-                q = q.filter(models.Value.name_numeric <= int(val[1]))
+                q = q.filter(models.Value.name_numeric <= float(val[1]))
             else:
                 pass
             cases_ = set(q.all())
