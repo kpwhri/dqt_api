@@ -24,11 +24,11 @@ from dqt_api import models
 from dqt_api.__main__ import prepare_config
 from dqt_api.manage import add_tabs, add_comments
 
-COLUMN_TO_CATEGORY = {}
+COLUMN_TO_DOMAIN = {}
 COLUMN_TO_DESCRIPTION = {}
 COLUMN_TO_LABEL = {}  # column name to "label" (the visible piece)
 
-CATEGORIES = {}  # name -> models.Category
+DOMAINS = {}  # name -> models.Category
 
 VALUES = defaultdict(dict)  # name -> item -> models.Value
 VALUES_BY_ITEM = defaultdict(dict)  # item -> id -> models.Value; for pre-defined ids
@@ -44,7 +44,10 @@ def clean_number(value):
 
 
 def create_function_for_range(value: str):
-    """Create function that defines a particular value/expression"""
+    """Create function that defines a particular value/expression
+
+    E.g., income in range $10,000 - $20,000
+    """
     # remove any problems for ints
     value = clean_number(value)
     to_numeric_func = float if '.' in value else int
@@ -89,9 +92,9 @@ def add_categories():
     'column_to_category' global variable.
     :return:
     """
-    for cat in set(COLUMN_TO_CATEGORY.values()):
+    for cat in set(COLUMN_TO_DOMAIN.values()):
         c = models.Category(name=cat)
-        CATEGORIES[cat] = c
+        DOMAINS[cat] = c
         db.session.add(c)
     db.session.commit()
 
@@ -126,7 +129,7 @@ def add_items(items, datamodel_vars, use_desc=False):
             if item not in ITEMS:
                 i = models.Item(name=COLUMN_TO_LABEL[item],
                                 description=COLUMN_TO_DESCRIPTION[item],
-                                category=CATEGORIES[COLUMN_TO_CATEGORY[item]].id)
+                                category=DOMAINS[COLUMN_TO_DOMAIN[item]].id)
                 ITEMS[item] = i
                 db.session.add(i)
         elif item in datamodel_vars:
@@ -161,8 +164,9 @@ def parse_csv(fp, datamodel_vars,
     """
     items = []
     curr_year = int(str(datetime.now().year)[-2:])
-    if not CATEGORIES:
+    if not DOMAINS:
         add_categories()
+    logger.info(f'Parsing variables from csv file: {fp}')
     with open(fp, newline='') as fh:
         reader = csv.reader(fh)
         for i, line in enumerate(reader):
@@ -188,7 +192,7 @@ def parse_csv(fp, datamodel_vars,
                             value = '20{}'.format(value)
                         else:
                             value = '19{}'.format(value)
-                    elif 'age' in curr_item or 'year' in curr_item:
+                    elif 'age' in curr_item or 'year' in curr_item or 'yr':
                         try:
                             value = str(int_floor(value))
                         except ValueError:
@@ -197,14 +201,25 @@ def parse_csv(fp, datamodel_vars,
                     # get the Value model itself
                     new_value = None
                     if curr_item in VALUES_BY_ITEM:  # categorization/ordering already assigned
+                        if value == '.' or value == 'missing':
+                            continue
+                        lookup_value = None  # value as it appears in VALUES_BY_ITEM (e.g., 1.5)
                         try:
-                            v = int(value)
+                            value_as_order = int(value)
                         except ValueError:
+                            if '.' in value:  # handle category of, e.g,. 1.5
+                                try:
+                                    lookup_value = float(value_as_order)
+                                except ValueError:
+                                    pass
+                                else:
+                                    value_as_order = int(lookup_value)
+
                             if len(value) == 1:
-                                v = int(value, 36)  # if letters were used
+                                value_as_order = int(value, 36)  # if letters were used
                             else:
-                                v = None
-                        if v is None:  # no categorization/numeric found, maybe string value?
+                                value_as_order = None
+                        if value_as_order is None:  # no categorization/numeric found, maybe string value?
                             for val in VALUES_BY_ITEM[curr_item].values():
                                 if val.name == value:
                                     new_value = val
@@ -212,7 +227,7 @@ def parse_csv(fp, datamodel_vars,
                             if not new_value:  # found a new category which expected to be defined
                                 # perhaps this is in a range
                                 for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
-                                    if func(v):
+                                    if func(value_as_order):
                                         new_value = func_value
                                 if not new_value:
                                     # not sure...let's log and add as extra var
@@ -224,11 +239,14 @@ def parse_csv(fp, datamodel_vars,
                                     db.session.add(new_value)
                                     VALUES_BY_ITEM[curr_item][order] = new_value
                         else:  # found int value
-                            if v in VALUES_BY_ITEM[curr_item]:
-                                new_value = VALUES_BY_ITEM[curr_item][v]
+                            if lookup_value and lookup_value in VALUES_BY_ITEM[curr_item]:
+                                # handles orders with float values
+                                new_value = VALUES_BY_ITEM[curr_item][lookup_value]
+                            elif value_as_order in VALUES_BY_ITEM[curr_item]:
+                                new_value = VALUES_BY_ITEM[curr_item][value_as_order]
                             elif '+' in VALUES_BY_ITEM[curr_item]:
                                 for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
-                                    if func(v):
+                                    if func(value_as_order):
                                         new_value = func_value
                     elif items_from_data_dictionary_only:
                         continue  # skip if user only wants values from data dictionary
@@ -267,9 +285,9 @@ def parse_csv(fp, datamodel_vars,
                     logger.exception('Likely duplicate primary key: drop table and re-run.', e)
 
                 logger.info('Committed case #{} (stored with name {}).'.format(i + 1, i))
+    logger.info(f'Done! Finished loading variables.')
 
-
-Row = namedtuple('Row', 'category description name label priority categories')
+Row = namedtuple('Row', 'domain description name label priority values')
 
 
 class CategorizationReader:
@@ -281,7 +299,7 @@ class CategorizationReader:
         self.data = {}
         for i, column in enumerate(header):
             column = column.lower()
-            for label in {'name', 'label', 'category', 'description', 'priority', 'categories'} - self.data.keys():
+            for label in {'name', 'label', 'domain', 'description', 'priority', 'values'} - self.data.keys():
                 if label in column:  # variable name
                     self.data[label] = i
 
@@ -295,13 +313,17 @@ class CategorizationReader:
 
     def __iter__(self) -> Row:
         for row in self.reader:
+            # enforce limits
+            description = self._get_data(row, 'description')
+            if len(description) > 499:
+                description = description[:496] + '...'
             yield Row(
-                category=self._get_data(row, 'category'),
-                description=self._get_data(row, 'description'),
+                domain=self._get_data(row, 'domain'),
+                description=description,
                 name=self._get_data(row, 'name').lower(),
                 label=self._get_data(row, 'label'),
                 priority=int(self._get_data(row, 'priority', 0)),
-                categories=self._get_data(row, 'categories', 0),
+                values=self._get_data(row, 'values', 0),
             )
 
     def __enter__(self):
@@ -311,59 +333,74 @@ class CategorizationReader:
         self.fh.close()
 
 
-def unpack_categories(categorization_csv, min_priority=0):
+def unpack_domains(categorization_csv, min_priority=0):
     """
     Primary entry point to move categories, items, and values into the database
     :param categorization_csv:
         columns:
-            * Category: category of the variable
+            * Domain: domain of the variable
             * Variable description: short description of variable for hover text
             * Variable name: program shorthand to reference variable
             * Variable label: human-readable display label for the variable
-            * Categories: values separated by '=='
+            * Values: values separated by '=='
                 e.g., 1=male||2=female
             * Priority (optional): number showing importance of variable (higher is more important)
     :param min_priority: limit the priority by only allowing >= priorities; allow all=0
     :return:
     """
-    global COLUMN_TO_CATEGORY, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
+    global COLUMN_TO_DOMAIN, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
+    logger.info(f'Unpacking domains from the categorisation CSV file.')
     with CategorizationReader(categorization_csv) as rows:
         for row in rows:
             if row.priority >= min_priority:
-                COLUMN_TO_CATEGORY[row.name] = row.category
-                if row.category in CATEGORIES:
-                    category_instance = CATEGORIES[row.category]
+                COLUMN_TO_DOMAIN[row.name] = row.domain
+                if row.domain in DOMAINS:
+                    domain_instance = DOMAINS[row.domain]
                 else:  # not yet added
-                    category_instance = models.Category(name=row.category, order=len(CATEGORIES))
-                    db.session.add(category_instance)
+                    logger.info(f'Adding variables from domain {row.domain}')
+                    domain_instance = models.Category(name=row.domain, order=len(DOMAINS))
+                    db.session.add(domain_instance)
                     db.session.commit()
-                    CATEGORIES[row.category] = category_instance
+                    DOMAINS[row.domain] = domain_instance
                 COLUMN_TO_DESCRIPTION[row.name] = row.description
                 COLUMN_TO_LABEL[row.name] = row.label
-                if row.categories:  # these "categories" are really ITEMS
-                    if re.match(r'\w[\=\s]', row.categories[:2]):
+                if row.values:  # these "categories" are really ITEMS
+                    if re.match(r'\w{1,3}\s*\=', row.values.strip()):
                         i = models.Item(name=row.label,
                                         description=row.description,
-                                        category=category_instance.id)
-                        for cat in row.categories.split('||'):
+                                        category=domain_instance.id)
+                        for cat in row.values.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
                             value = value.strip().lower()  # standardize all values to lowercase
                             # get the categorization order
                             if order == '.' or value == 'missing':
-                                logger.warning(f'Ignoring value for {cat}: assuming this is missing.')
+                                logger.warning(f'Ignoring value for {row.name}: {cat} (assuming this is missing).')
                                 continue
+                            lookup_value = None
                             try:  # numbers first
-                                order = int(order)
+                                order = int(float(order))  # handle decimals
                             except ValueError:  # letters appear after numbers
-                                try:
-                                    order = int(order, 36)
-                                except ValueError as e:
-                                    logger.exception(e)
+                                # handle order of float (e.g., 1.5)
+                                if '.' in order:
+                                    try:
+                                        lookup_value = float(order)
+                                    except ValueError:
+                                        pass
+                                    else:
+                                        order = int(lookup_value)
+                                elif len(value) == 1:  # handle single letter
+                                    try:
+                                        order = int(order, 36)
+                                    except ValueError as e:
+                                        logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
+                                        raise
+                                else:
                                     logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
                                     raise
                             v = models.Value(name=value, order=order)
                             db.session.add(v)
-                            VALUES_BY_ITEM[row.name][order] = v
+                            # prefer lookup value so that 1.5 and 1 don't map to same order
+                            VALUES_BY_ITEM[row.name][lookup_value or order] = v
                             if value[-1] in {'+', '-'} or value[0] in {'<', '>'} or '-' in value:
                                 if '+' not in VALUES_BY_ITEM[row.name]:
                                     VALUES_BY_ITEM[row.name]['+'] = []  # for values greater than
@@ -378,11 +415,13 @@ def unpack_categories(categorization_csv, min_priority=0):
                     else:
                         i = models.Item(name=row.label,
                                         description=row.description,
-                                        category=category_instance.id,
+                                        category=domain_instance.id,
                                         is_numeric=True)
                     ITEMS[row.name] = i
                     db.session.add(i)
+    logger.info(f'Committing updates to database.')
     db.session.commit()
+    logger.info(f'Finished unpacking domains.')
 
 
 def add_data_dictionary(input_files, file_name, label_column, name_column, category_col,
@@ -399,6 +438,7 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
     :param kwargs: n/a
     :return:
     """
+    logger.info(f'Uploading data dictionary to database.')
     for input_file in input_files:
         if 'xls' in input_file.split('.')[-1]:
             if category_col:
@@ -432,6 +472,7 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
         else:
             raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
     db.session.commit()  # commit all files together, simplifies re-running should an error occur
+    logger.info(f'Finished uploading data dictionary.')
 
 
 def main():
@@ -478,37 +519,38 @@ def main():
 
     logger.add('load_csv_{time}.log', backtrace=True, diagnose=True)
 
-    logger.debug('Unpacking categories.')
-    unpack_categories(args.categorization_csv, args.minimum_priority)
-    datamodel_vars = {
-        args.age_bl: 'age_bl',
-        args.age_fu: 'age_fu',
-        args.gender: 'gender',
-        args.enrollment: 'enrollment',
-        args.intake_date: 'intake_date',
-        args.followup_years: 'followup_years'
-    }
-    if args.tab_file:
-        logger.debug('Adding tabs from file.')
-        add_tabs(args.tab_file)
-    if args.comment_file:
-        logger.debug('Adding comments from file.')
-        add_comments(args.comment_file)
-    logger.debug('Parsing CSV file.')
-    parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+    with app.app_context():
+        logger.debug('Unpacking categories.')
+        unpack_domains(args.categorization_csv, args.minimum_priority)
+        datamodel_vars = {
+            args.age_bl: 'age_bl',
+            args.age_fu: 'age_fu',
+            args.gender: 'gender',
+            args.enrollment: 'enrollment',
+            args.intake_date: 'intake_date',
+            args.followup_years: 'followup_years'
+        }
+        if args.tab_file:
+            logger.debug('Adding tabs from file.')
+            add_tabs(args.tab_file)
+        if args.comment_file:
+            logger.debug('Adding comments from file.')
+            add_comments(args.comment_file)
+        logger.debug('Parsing CSV file.')
+        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
 
-    if args.dd_input_file:
-        # optionally generate and store the data dictionary
-        logger.debug('Adding data dictionary.')
-        add_data_dictionary(
-            args.dd_input_file,
-            args.dd_file_name,
-            args.dd_label_column,
-            args.dd_name_column,
-            args.dd_category_column,
-            args.dd_description_column,
-            args.dd_value_column,
-        )
+        if args.dd_input_file:
+            # optionally generate and store the data dictionary
+            logger.debug('Adding data dictionary.')
+            add_data_dictionary(
+                args.dd_input_file,
+                args.dd_file_name,
+                args.dd_label_column,
+                args.dd_name_column,
+                args.dd_category_column,
+                args.dd_description_column,
+                args.dd_value_column,
+            )
 
 
 if __name__ == '__main__':

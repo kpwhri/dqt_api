@@ -17,9 +17,6 @@ import sys
 from collections import defaultdict
 
 from flask_alembic import Alembic
-from flask_script import Manager
-from flask_migrate import Migrate
-from flask_alembic.cli.script import manager as alembic_manager
 from loguru import logger
 
 from dqt_api import db, app, whooshee
@@ -97,29 +94,28 @@ def manage():
     Run 'migrate' followed by 'upgrade'
     :return:
     """
-    migrate = Migrate(app, db)
-    manager = Manager(app)
-    alembic = Alembic(app)
-
-    manager.add_command('db', alembic_manager)
-    manager.run()
+    alembic = Alembic()
+    alembic.init_app(app)
+    raise ValueError('Forgot what this function is for, but has bad imports.')
 
 
 def drop_all():
-    db.session.commit()  # check for any uncompleted commits
-    db.metadata.drop_all(
-        db.engine,
-        tables=TABLES_EXC_USERDATA_ATTR
-    )
+    with app.app_context():
+        db.session.commit()  # check for any uncompleted commits
+        db.metadata.drop_all(
+            db.engine,
+            tables=TABLES_EXC_USERDATA_ATTR
+        )
 
 
 def create():
-    db.metadata.create_all(
-        db.engine,
-        tables=TABLES_EXC_USERDATA_ATTR
-    )
-    alembic = Alembic()
-    alembic.init_app(app)
+    with app.app_context():
+        db.metadata.create_all(
+            db.engine,
+            tables=TABLES_EXC_USERDATA_ATTR
+        )
+        alembic = Alembic()
+        alembic.init_app(app)
 
 
 def create_user_data():
@@ -346,6 +342,7 @@ def add_tabs(tab_file):
         At least TabName="Home" required (this is welcome page)
     :return:
     """
+    logger.info(f'Adding tabs to database.')
     with open(tab_file) as fh:
         for i, line in enumerate(fh):
             line = line.strip()
@@ -356,6 +353,7 @@ def add_tabs(tab_file):
                                line=i, order=int(tab_order), text_type=text_type)
             db.session.add(t)
     db.session.commit()
+    logger.info(f'Tabs committed to database.')
 
 
 def add_comments(comment_file):
@@ -366,6 +364,7 @@ def add_comments(comment_file):
         Location: only "table" makes sense right now
     :return:
     """
+    logger.info(f'Adding comments to database.')
     with open(comment_file) as fh:
         for i, line in enumerate(fh):
             line = line.strip()
@@ -376,6 +375,7 @@ def add_comments(comment_file):
                                comment='=='.join(text))
             db.session.add(c)
     db.session.commit()
+    logger.info(f'Comments committed to database.')
 
 
 if __name__ == '__main__':
