@@ -128,7 +128,8 @@ def iterable_to_csv(iterable, csvfile, header=None, col_order=None, join_multili
             writer.writerow(header)
         for row in iterable:
             if join_multiline:
-                row = [join_multiline.join(x.split('\n')) for x in row]
+                # handle None (e.g., empty description)
+                row = [join_multiline.join(x.split('\n')) if isinstance(x, str) else '' for x in row]
             if is_iterable(row) and not isinstance(iterable, dict):
                 writer.writerow(row)
             elif isinstance(iterable, dict):
