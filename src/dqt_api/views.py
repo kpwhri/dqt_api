@@ -280,8 +280,6 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         depth=3
     )
     df = pd.DataFrame(query_to_dict(data))
-    import random
-    df.to_csv(f'data_{random.randint(0, 1000)}.csv', index=False)
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step()
     # get age counts for each sex
