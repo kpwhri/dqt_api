@@ -21,14 +21,14 @@ def initialize(app, db):
         app.logger.info('Loaded from file.')
         return
     except Exception as e:
-        app.logger.info('Failed to load file: {}'.format(e))
-    app.logger.debug('Initializing...')
+        app.logger.info(f'Failed to load file cache, rebuilding: {e}')
+    app.logger.debug('Initializing...loading population size...')
     app.config['POPULATION_SIZE'] = db.session.query(models.DataModel).count()
-    app.logger.debug('Initializing2...')
+    app.logger.debug('Initializing...precomputing categories...')
     app.config['PRECOMPUTED_COLUMN'] = get_all_categories()
-    app.logger.debug('Initializing3...')
+    app.logger.debug('Initializing...building indices...')
     app.config['PRECOMPUTED_FILTER'] = api_filter_chart_helper(jitter=False)
-    app.logger.debug('Initializing4...')
+    app.logger.debug('Initializing...building null index...')
     app.config['NULL_FILTER'] = remove_values(app.config['PRECOMPUTED_FILTER'])
     app.logger.debug('Finished initializing...')
 
