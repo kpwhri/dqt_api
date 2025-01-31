@@ -145,7 +145,7 @@ def add_items(items, datamodel_vars, use_desc=False):
             add(item, excluded=True)
         else:
             logger.warning(f'Variable not marked for inclusion: "{item}".')
-            res.append(ItemVar(item, excluded=True))
+            add(item, excluded=True)
     db.session.commit()
     return res
 
@@ -183,7 +183,7 @@ def parse_csv(fp, datamodel_vars,
                 graph_data = defaultdict(lambda: None)  # separate summary data table
                 for j, value in enumerate(line):  # for each variable in this row
                     if items[j].excluded:
-                        logger.debug(f'Missing column #{j}: {curr_item} ({value.strip()})')
+                        logger.debug(f'Missing column #{j}: {items[j].variable} ({value.strip()})')
                         continue
                     if not value.strip() or value == '.':  # empty/missing value: exclude
                         continue
