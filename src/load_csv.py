@@ -221,6 +221,8 @@ def parse_csv(fp, datamodel_vars,
                                 value_as_order = None
                         if value_as_order is None:  # no categorization/numeric found, maybe string value?
                             for val in VALUES_BY_ITEM[curr_item].values():
+                                if isinstance(val, list):
+                                    continue  # handle '+'
                                 if val.name == value:
                                     new_value = val
                                     break
