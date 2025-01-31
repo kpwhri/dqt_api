@@ -192,7 +192,7 @@ def parse_csv(fp, datamodel_vars,
                             value = '20{}'.format(value)
                         else:
                             value = '19{}'.format(value)
-                    elif 'age' in curr_item or 'year' in curr_item or 'yr':
+                    elif 'age' in curr_item or 'year' in curr_item or 'yr' in curr_item:
                         try:
                             value = str(int_floor(value))
                         except ValueError:
