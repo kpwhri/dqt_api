@@ -167,7 +167,7 @@ WARNING: Note that the jitter and masking can appear to cause peculiar results i
 
 ### Enabling Search
 
-
+After running the `load_csv.py` script, ensure that the resulting `whooshee.idx` folder is moved to wherever specified by the `WHOOSHEE_DIR` in the `cnofig,py` file.
 
 ### Config
 
@@ -190,7 +190,7 @@ ORIGINS = ['*']  # best to supply a specific URL
 COHORT_TITLE = 'My Data'
 UPDATE_DATE = 'January 2020'
 # optional, if you don't want in default location when running app.py; no effect from __main__.py
-WHOOSHEE_DIR = r'C:\data\config\whooshee'
+WHOOSHEE_DIR = r'C:\data\config\dqt\whooshee.idx'
 ```
 
 ### Adding Tabs
