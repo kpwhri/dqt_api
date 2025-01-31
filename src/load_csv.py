@@ -99,12 +99,13 @@ def add_categories():
     db.session.commit()
 
 
-ItemVar = namedtuple('ItemVar', 'variable excluded')
+ItemVar = namedtuple('ItemVar', 'variable excluded has_date has_age_year')
 
 
 def add_items(items, datamodel_vars, use_desc=False):
     """
     Add items to database along with their descriptions, and commit.
+
     :param datamodel_vars: dict of variables stored in data_model table
     :param use_desc: use variables that end in '_desc'
         these already include a descriptive value rather than a numeric reference to
@@ -113,7 +114,13 @@ def add_items(items, datamodel_vars, use_desc=False):
     :return:
     """
     res = []
-    desc = [i[:-5] for i in items if i.endswith('_desc')]
+
+    def add(it, excluded=False):
+        has_age_year = 'age' in it or 'yr' in it or 'year' in it
+        has_date = 'dt' in it or 'date' in it
+        res.append(ItemVar(it, excluded=excluded, has_date=has_date, has_age_year=has_age_year))
+
+    desc = {i[:-5] for i in items if i.endswith('_desc')}
     for item in items:
         has_desc = False  # HACK: certain labels I only want when they end in "_desc"
         if item.endswith('_desc'):
@@ -121,11 +128,11 @@ def add_items(items, datamodel_vars, use_desc=False):
                 item = item[:-5]
                 has_desc = True
             else:  # skip if not using descending
-                res.append(ItemVar(item, excluded=True))
+                add(item, excluded=True)
                 continue
         if item in COLUMN_TO_LABEL and (item not in desc or has_desc or not use_desc):
             # item = COLUMN_TO_LABEL[item]
-            res.append(ItemVar(item, excluded=False))
+            add(item, excluded=False)
             if item not in ITEMS:
                 i = models.Item(name=COLUMN_TO_LABEL[item],
                                 description=COLUMN_TO_DESCRIPTION[item],
@@ -133,9 +140,9 @@ def add_items(items, datamodel_vars, use_desc=False):
                 ITEMS[item] = i
                 db.session.add(i)
         elif item in datamodel_vars:
-            res.append(ItemVar(datamodel_vars[item], excluded=False))
+            add(datamodel_vars[item], excluded=False)
         elif item in desc:  # desc version chosen
-            res.append(ItemVar(item, excluded=True))
+            add(item, excluded=True)
         else:
             logger.warning(f'Variable not marked for inclusion: "{item}".')
             res.append(ItemVar(item, excluded=True))
@@ -174,25 +181,28 @@ def parse_csv(fp, datamodel_vars,
                 items = add_items([x.lower() for x in line], datamodel_vars)
             elif line_not_empty(line):
                 graph_data = defaultdict(lambda: None)  # separate summary data table
-                for j, value in enumerate(line):
-                    if not value.strip():  # empty/missing value: exclude
-                        continue
-                    value = value.lower()  # standardize to lowercase
-                    curr_item = items[j].variable
+                for j, value in enumerate(line):  # for each variable in this row
                     if items[j].excluded:
                         logger.debug(f'Missing column #{j}: {curr_item} ({value.strip()})')
                         continue
+                    if not value.strip() or value == '.':  # empty/missing value: exclude
+                        continue
+                    value = value.lower()  # standardize to lowercase
+                    if value == 'missing':
+                        continue
+                    curr_item = items[j].variable
                     # pre-processing values
-                    # convert date to year
-                    if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
-                        value = str(int_floor(value[-4:]))
-                    elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
-                        value = int_floor(value[-2:])
-                        if value <= curr_year:
-                            value = '20{}'.format(value)
-                        else:
-                            value = '19{}'.format(value)
-                    elif 'age' in curr_item or 'year' in curr_item or 'yr' in curr_item:
+                    if items[j].has_date and len(value) >= 6:
+                        # convert date to year
+                        if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
+                            value = str(int_floor(value[-4:]))
+                        elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
+                            value = int_floor(value[-2:])
+                            if value <= curr_year:
+                                value = '20{}'.format(value)
+                            else:
+                                value = '19{}'.format(value)
+                    elif items[j].has_age_year:
                         try:
                             value = str(int_floor(value))
                         except ValueError:
@@ -201,8 +211,6 @@ def parse_csv(fp, datamodel_vars,
                     # get the Value model itself
                     new_value = None
                     if curr_item in VALUES_BY_ITEM:  # categorization/ordering already assigned
-                        if value == '.' or value == 'missing':
-                            continue
                         lookup_value = None  # value as it appears in VALUES_BY_ITEM (e.g., 1.5)
                         try:
                             value_as_order = int(value)
