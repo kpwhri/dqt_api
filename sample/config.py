@@ -7,6 +7,7 @@ LOG_KEY = b'6\x1d\xef\n\xd8\x8clT/\xf3h1v\xebfF\xa6\x9f\xc2\xc0-e"\xab\xd9\xcf\x
 SQLALCHEMY_DATABASE_URI = r'mssql+pyodbc://SERVER/DATABASE?driver=SQL Server'
 AGE_STEP = 5
 MASK = 5  # don't show groups with values smaller than this
+JITTER = 'random string'  # add to jitter function, set to `JITTER = None` to disable
 AGE_MAX = 100  # maximum age to show (everything above will be shown as 100+)
 AGE_MIN = 30  # minimum age to show (everything below will be shown as <=30)
 ORIGINS = ['*']  # best to supply a specific URL

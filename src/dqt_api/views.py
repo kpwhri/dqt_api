@@ -44,7 +44,7 @@ def remove_values(f):
 
 
 def jitter_value_by_date(value):
-    return value + hash(datetime.date.today().strftime('%Y%m%dh')) % 6 - 2
+    return value + hash(datetime.date.today().strftime('%Y%m%d') + str(app.config.get('JITTER', 'DEFAULT'))) % 6 - 2
 
 
 @app.route('/', methods=['GET'])
@@ -263,7 +263,7 @@ def api_get_dictionary():
 @lru_cache(maxsize=256)
 def api_filter_chart_helper(jitter=True, arg_list=None):
     def jitter_function(x):
-        return jitter_value_by_date(x) if jitter else x
+        return jitter_value_by_date(x) if app.config.get('JITTER', True) else x
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
