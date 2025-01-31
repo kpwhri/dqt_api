@@ -709,11 +709,11 @@ def get_comments(component):
 
 @app.route('/api/data/dictionary/get', methods=['GET'])
 def get_data_dictionary():
-    """Get excel file"""
+    """Get excel file as a download"""
     df = models.DataFile.query.order_by(text('-id')).first()
     return send_file(BytesIO(df.file),
                      mimetype='application/vnd.ms-excel',
-                     attachment_filename=df.filename,
+                     download_name=df.filename,
                      as_attachment=True)
 
 
