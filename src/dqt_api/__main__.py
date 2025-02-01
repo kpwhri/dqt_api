@@ -24,7 +24,7 @@ def mkdir_p(path):
     return path
 
 
-def prepare_config(debug=False, whooshee_dir=False):
+def prepare_config(debug=False, whooshee_dir=False, skip_init=False):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['LOG_DIR'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'logs'))
     app.config['SQLALCHEMY_MIGRATE_REPO'] = mkdir_p(os.path.join(app.config['BASE_DIR'], 'migrations'))
@@ -64,8 +64,9 @@ def prepare_config(debug=False, whooshee_dir=False):
         app.logger.exception(e)
 
     # initialize filters, etc.
-    with app.app_context():
-        initialize(app, db)
+    if not skip_init:
+        with app.app_context():
+            initialize(app, db)
 
 
 def run_cherrypy_server(port=8090):

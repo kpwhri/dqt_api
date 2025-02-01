@@ -8,8 +8,12 @@ A second entry is `add_data_dictionary` which optionally uploads a data dictiona
     the database. This can be accessed as a standalone module with `load_dd.py`.
 
 """
+import asyncio
 import csv
 import hashlib
+
+import aiocsv
+import aiofiles
 from loguru import logger
 import re
 from collections import defaultdict, namedtuple
@@ -160,8 +164,7 @@ def get_max_values_by_item(value, item):
     min_val = min(VALUES_BY_ITEM[item].keys())
 
 
-def parse_csv(fp, datamodel_vars,
-              items_from_data_dictionary_only):
+async def parse_csv(fp, datamodel_vars, items_from_data_dictionary_only):
     """
     Load csv file into database, committing after each case.
     :param datamodel_vars:
@@ -169,136 +172,140 @@ def parse_csv(fp, datamodel_vars,
     :param fp: path to csv file
     :return:
     """
-    items = []
     curr_year = int(str(datetime.now().year)[-2:])
     if not DOMAINS:
         add_categories()
     logger.info(f'Parsing variables from csv file: {fp}')
-    with open(fp, newline='') as fh:
-        reader = csv.reader(fh)
-        for i, line in enumerate(reader):
-            if i == 0:  # make sure all items/variables already added to database
-                items = add_items([x.lower() for x in line], datamodel_vars)
-            elif line_not_empty(line):
-                graph_data = defaultdict(lambda: None)  # separate summary data table
-                for j, value in enumerate(line):  # for each variable in this row
-                    if items[j].excluded:
-                        logger.debug(f'Missing column #{j}: {items[j].variable} ({value.strip()})')
-                        continue
-                    if not value.strip() or value == '.':  # empty/missing value: exclude
-                        continue
-                    value = value.lower()  # standardize to lowercase
-                    if value == 'missing':
-                        continue
-                    curr_item = items[j].variable
-                    # pre-processing values
-                    if items[j].has_date and len(value) >= 6:
-                        # convert date to year
-                        if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
-                            value = str(int_floor(value[-4:]))
-                        elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
-                            value = int_floor(value[-2:])
-                            if value <= curr_year:
-                                value = '20{}'.format(value)
-                            else:
-                                value = '19{}'.format(value)
-                    elif items[j].has_age_year:
-                        try:
-                            value = str(int_floor(value))
-                        except ValueError:
-                            pass
+    async with aiofiles.open(fp, newline='') as fh:
+        reader = aiocsv.AsyncReader(fh)
+        first_line = await reader.__anext__()
+        # make sure all items/variables already added to database
+        items = add_items([x.lower() for x in first_line], datamodel_vars)
+        i = 0
+        async for line in reader:
+            i += 1
+            if line_not_empty(line):
+                await load_line_to_db(curr_year, datamodel_vars, i, items, items_from_data_dictionary_only, line)
 
-                    # get the Value model itself
-                    new_value = None
-                    if curr_item in VALUES_BY_ITEM:  # categorization/ordering already assigned
-                        lookup_value = None  # value as it appears in VALUES_BY_ITEM (e.g., 1.5)
-                        try:
-                            value_as_order = int(value)
-                        except ValueError:
-                            if '.' in value:  # handle category of, e.g,. 1.5
-                                try:
-                                    lookup_value = float(value_as_order)
-                                except ValueError:
-                                    pass
-                                else:
-                                    value_as_order = int(lookup_value)
-
-                            if len(value) == 1:
-                                value_as_order = int(value, 36)  # if letters were used
-                            else:
-                                value_as_order = None
-                        if value_as_order is None:  # no categorization/numeric found, maybe string value?
-                            for val in VALUES_BY_ITEM[curr_item].values():
-                                if isinstance(val, list):
-                                    continue  # handle '+'
-                                if val.name == value:
-                                    new_value = val
-                                    break
-                            if not new_value:  # found a new category which expected to be defined
-                                # perhaps this is in a range
-                                for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
-                                    if func(value_as_order):
-                                        new_value = func_value
-                                if not new_value:
-                                    # not sure...let's log and add as extra var
-                                    logger.warning(f'No categorization found for `{curr_item}`: "{value}"')
-                                    order = max(
-                                        (x for x in VALUES_BY_ITEM[curr_item].keys() if isinstance(x, (int, float))),
-                                        default=123
-                                    ) + 1
-                                    logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
-                                    new_value = models.Value(name=value, order=order)
-                                    VALUES[curr_item][value] = new_value
-                                    db.session.add(new_value)
-                                    VALUES_BY_ITEM[curr_item][order] = new_value
-                        else:  # found int value
-                            if lookup_value and lookup_value in VALUES_BY_ITEM[curr_item]:
-                                # handles orders with float values
-                                new_value = VALUES_BY_ITEM[curr_item][lookup_value]
-                            elif value_as_order in VALUES_BY_ITEM[curr_item]:
-                                new_value = VALUES_BY_ITEM[curr_item][value_as_order]
-                            elif '+' in VALUES_BY_ITEM[curr_item]:
-                                for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
-                                    if func(value_as_order):
-                                        new_value = func_value
-                    elif items_from_data_dictionary_only:
-                        continue  # skip if user only wants values from data dictionary
-                    # don't include this as else because if-clause needs to go here
-                    if not new_value:  # add value if it doesn't exist
-                        if value not in VALUES[curr_item]:
-                            val = models.Value(name=value)
-                            logger.warning(f'Adding new value: {value} = {curr_item}')
-                            VALUES[curr_item][value] = val
-                            db.session.add(val)
-                        new_value = VALUES[curr_item][value]
-
-                    # data model variables
-                    if curr_item in datamodel_vars:  # name appears == wanted
-                        graph_data[datamodel_vars[curr_item]] = new_value.name  # get datamodel var name
-                    elif curr_item in datamodel_vars.values():  # name not requested
-                        graph_data[curr_item] = new_value.name
-                        continue  # not included in actual dataset
-
-                    # add variable with item and value
-                    var = models.Variable(case=i,
-                                          item=ITEMS[curr_item].id,
-                                          value=new_value.id)
-                    db.session.add(var)
-                logger.debug('Cohort data: {}'.format(str(graph_data)))
-                db.session.add(models.DataModel(case=i,
-                                                age_bl=graph_data['age_bl'],
-                                                age_fu=graph_data['age_fu'],
-                                                sex=graph_data['gender'],
-                                                enrollment=graph_data['enrollment'],
-                                                followup_years=int_round(graph_data['followup_years'], 1),
-                                                intake_date=graph_data['intake_date']))  # placeholder
-                try:
-                    db.session.commit()  # commit each case separately
-                except sqla.exc.IntegrityError as e:
-                    logger.exception('Likely duplicate primary key: drop table and re-run.', e)
-
-                logger.info('Committed case #{} (stored with name {}).'.format(i + 1, i))
     logger.info(f'Done! Finished loading variables.')
+
+
+async def load_line_to_db(curr_year, datamodel_vars, i, items, items_from_data_dictionary_only, line):
+    add_to_db_list = []
+    graph_data = defaultdict(lambda: None)  # separate summary data table
+    for j, value in enumerate(line):  # for each variable in this row
+        if items[j].excluded:
+            logger.debug(f'Missing column #{j}: {items[j].variable} ({value.strip()})')
+            continue
+        if not value.strip() or value == '.':  # empty/missing value: exclude
+            continue
+        value = value.lower()  # standardize to lowercase
+        if value == 'missing':
+            continue
+        curr_item = items[j].variable
+        # pre-processing values
+        if items[j].has_date and len(value) >= 6:
+            # convert date to year
+            if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
+                value = str(int_floor(value[-4:]))
+            elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
+                value = int_floor(value[-2:])
+                if value <= curr_year:
+                    value = '20{}'.format(value)
+                else:
+                    value = '19{}'.format(value)
+        elif items[j].has_age_year:
+            try:
+                value = str(int_floor(value))
+            except ValueError:
+                pass
+
+        # get the Value model itself
+        new_value = None
+        if curr_item in VALUES_BY_ITEM:  # categorization/ordering already assigned
+            lookup_value = None  # value as it appears in VALUES_BY_ITEM (e.g., 1.5)
+            try:
+                value_as_order = int(value)
+            except ValueError:
+                if '.' in value:  # handle category of, e.g,. 1.5
+                    try:
+                        lookup_value = float(value_as_order)
+                    except ValueError:
+                        pass
+                    else:
+                        value_as_order = int(lookup_value)
+
+                if len(value) == 1:
+                    value_as_order = int(value, 36)  # if letters were used
+                else:
+                    value_as_order = None
+            if value_as_order is None:  # no categorization/numeric found, maybe string value?
+                for val in VALUES_BY_ITEM[curr_item].values():
+                    if isinstance(val, list):
+                        continue  # handle '+'
+                    if val.name == value:
+                        new_value = val
+                        break
+                if not new_value:  # found a new category which expected to be defined
+                    # perhaps this is in a range
+                    for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
+                        if func(value_as_order):
+                            new_value = func_value
+                    if not new_value:
+                        # not sure...let's log and add as extra var
+                        logger.warning(f'No categorization found for `{curr_item}`: "{value}"')
+                        order = max((x for x in VALUES_BY_ITEM[curr_item].keys() if isinstance(x, (int, float))),
+                                    default=123) + 1
+                        logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
+                        new_value = models.Value(name=value, order=order)
+                        VALUES[curr_item][value] = new_value
+                        add_to_db_list.append(new_value)
+                        VALUES_BY_ITEM[curr_item][order] = new_value
+            else:  # found int value
+                if lookup_value and lookup_value in VALUES_BY_ITEM[curr_item]:
+                    # handles orders with float values
+                    new_value = VALUES_BY_ITEM[curr_item][lookup_value]
+                elif value_as_order in VALUES_BY_ITEM[curr_item]:
+                    new_value = VALUES_BY_ITEM[curr_item][value_as_order]
+                elif '+' in VALUES_BY_ITEM[curr_item]:
+                    for func, func_value in VALUES_BY_ITEM[curr_item]['+']:
+                        if func(value_as_order):
+                            new_value = func_value
+        elif items_from_data_dictionary_only:
+            continue  # skip if user only wants values from data dictionary
+        # don't include this as else because if-clause needs to go here
+        if not new_value:  # add value if it doesn't exist
+            if value not in VALUES[curr_item]:
+                val = models.Value(name=value)
+                logger.warning(f'Adding new value: {value} = {curr_item}')
+                VALUES[curr_item][value] = val
+                add_to_db_list.append(val)
+            new_value = VALUES[curr_item][value]
+
+        # data model variables
+        if curr_item in datamodel_vars:  # name appears == wanted
+            graph_data[datamodel_vars[curr_item]] = new_value.name  # get datamodel var name
+        elif curr_item in datamodel_vars.values():  # name not requested
+            graph_data[curr_item] = new_value.name
+            continue  # not included in actual dataset
+
+        # add variable with item and value
+        var = models.Variable(case=i,
+                              item=ITEMS[curr_item].id,
+                              value=new_value.id)
+        add_to_db_list.append(var)
+    logger.debug('Cohort data: {}'.format(str(graph_data)))
+    add_to_db_list.append(models.DataModel(case=i,
+                                           age_bl=graph_data['age_bl'],
+                                           age_fu=graph_data['age_fu'],
+                                           sex=graph_data['gender'],
+                                           enrollment=graph_data['enrollment'],
+                                           followup_years=int_round(graph_data['followup_years'], 1),
+                                           intake_date=graph_data['intake_date']))  # placeholder
+
+    db.session.bulk_save_objects(add_to_db_list)
+    db.session.commit()
+
 
 Row = namedtuple('Row', 'domain description name label priority values')
 
@@ -364,7 +371,7 @@ def unpack_domains(categorization_csv, min_priority=0):
     global COLUMN_TO_DOMAIN, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
     logger.info(f'Unpacking domains from the categorisation CSV file.')
     with CategorizationReader(categorization_csv) as rows:
-        for row in rows:
+        for i, row in enumerate(rows):
             if row.priority >= min_priority:
                 COLUMN_TO_DOMAIN[row.name] = row.domain
                 if row.domain in DOMAINS:
@@ -391,7 +398,7 @@ def unpack_domains(categorization_csv, min_priority=0):
                                 continue
                             lookup_value = None
                             try:  # numbers first
-                                order = int(order)  # handle decimals
+                                order = int(float(order))  # handle decimals
                             except ValueError:  # letters appear after numbers
                                 # handle order of float (e.g., 1.5)
                                 if '.' in order:
@@ -550,7 +557,7 @@ def main():
             logger.debug('Adding comments from file.')
             add_comments(args.comment_file)
         logger.debug('Parsing CSV file.')
-        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+        asyncio.run(parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only))
 
         if args.dd_input_file:
             # optionally generate and store the data dictionary
