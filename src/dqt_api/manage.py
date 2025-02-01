@@ -79,9 +79,10 @@ def main():
 
 
 def update_tabs(fp):
-    db.session.query(models.TabData).delete()
-    db.session.commit()
-    add_tabs(fp)
+    with app.app_context():
+        db.session.query(models.TabData).delete()
+        db.session.commit()
+        add_tabs(fp)
 
 
 def reindex():
