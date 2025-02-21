@@ -201,7 +201,7 @@ def save_data_model(graph_data):
                 age_fu=graph_data[case]['age_fu'],
                 sex=graph_data[case]['gender'],
                 enrollment=graph_data[case]['enrollment'],
-                followup_years=int_round(graph_data[case]['followup_years'], 1),
+                followup_years=graph_data[case]['followup_years'],
                 intake_date=graph_data[case]['intake_date'])
         )
     db.session.bulk_save_objects(dms)
