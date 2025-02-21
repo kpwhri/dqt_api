@@ -202,8 +202,7 @@ def save_data_model(graph_data):
                 age_fu=graph_data[case]['age_fu'],
                 sex=graph_data[case]['gender'],
                 enrollment=graph_data[case]['enrollment'],
-                followup_years=graph_data[case]['followup_years'],
-                intake_date=graph_data[case]['intake_date'])
+                followup_years=graph_data[case]['followup_years'])
         )
     db.session.bulk_save_objects(dms)
     db.session.commit()
@@ -530,8 +529,6 @@ def main():
                         help='Variable for enrollment status (for graphing).')
     parser.add_argument('--followup-years', required=True, type=str.lower,
                         help='Variable for years of presence in cohort (for graphing).')
-    parser.add_argument('--intake-date', required=True, type=str.lower,
-                        help='Variable for date when subject was added to cohort (for graphing).')
     parser.add_argument('--categorization-csv', required=True,
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
@@ -561,7 +558,6 @@ def main():
             args.age_fu: 'age_fu',
             args.gender: 'gender',
             args.enrollment: 'enrollment',
-            args.intake_date: 'intake_date',
             args.followup_years: 'followup_years'
         }
         if args.tab_file:

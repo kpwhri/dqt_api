@@ -290,8 +290,8 @@ def parse_csv(fp, datamodel_vars,
                                                 age_fu=graph_data['age_fu'],
                                                 sex=graph_data['gender'],
                                                 enrollment=graph_data['enrollment'],
-                                                followup_years=int_round(graph_data['followup_years'], 1),
-                                                intake_date=graph_data['intake_date']))  # placeholder
+                                                followup_years=int_round(graph_data['followup_years'], 1)
+                                                ))
                 try:
                     db.session.commit()  # commit each case separately
                 except sqla.exc.IntegrityError as e:
@@ -299,6 +299,7 @@ def parse_csv(fp, datamodel_vars,
 
                 logger.info('Committed case #{} (stored with name {}).'.format(i + 1, i))
     logger.info(f'Done! Finished loading variables.')
+
 
 Row = namedtuple('Row', 'domain description name label priority values')
 
@@ -509,8 +510,6 @@ def main():
                         help='Variable for enrollment status (for graphing).')
     parser.add_argument('--followup-years', required=True, type=str.lower,
                         help='Variable for years of presence in cohort (for graphing).')
-    parser.add_argument('--intake-date', required=True, type=str.lower,
-                        help='Variable for date when subject was added to cohort (for graphing).')
     parser.add_argument('--categorization-csv', required=True,
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
@@ -540,7 +539,6 @@ def main():
             args.age_fu: 'age_fu',
             args.gender: 'gender',
             args.enrollment: 'enrollment',
-            args.intake_date: 'intake_date',
             args.followup_years: 'followup_years'
         }
         if args.tab_file:

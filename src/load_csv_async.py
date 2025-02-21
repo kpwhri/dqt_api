@@ -301,8 +301,7 @@ async def load_line_to_db(curr_year, datamodel_vars, i, items, items_from_data_d
                                            sex=graph_data['gender'],
                                            enrollment=graph_data['enrollment'],
                                            followup_years=int_round(graph_data['followup_years'], 1),
-                                           intake_date=graph_data['intake_date']))  # placeholder
-
+                                           ))
     db.session.bulk_save_objects(add_to_db_list)
     db.session.commit()
 
@@ -516,8 +515,6 @@ def main():
                         help='Variable for enrollment status (for graphing).')
     parser.add_argument('--followup-years', required=True, type=str.lower,
                         help='Variable for years of presence in cohort (for graphing).')
-    parser.add_argument('--intake-date', required=True, type=str.lower,
-                        help='Variable for date when subject was added to cohort (for graphing).')
     parser.add_argument('--categorization-csv', required=True,
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
@@ -547,7 +544,6 @@ def main():
             args.age_fu: 'age_fu',
             args.gender: 'gender',
             args.enrollment: 'enrollment',
-            args.intake_date: 'intake_date',
             args.followup_years: 'followup_years'
         }
         if args.tab_file:

@@ -75,7 +75,6 @@ class DataModel(db.Model):
     sex = db.Column(db.String(10))
     enrollment = db.Column(db.String(15))
     followup_years = db.Column(db.Integer)
-    intake_date = db.Column(db.Integer)
 
 
 class UserData(db.Model):

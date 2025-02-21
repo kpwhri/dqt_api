@@ -274,11 +274,7 @@ def load(count):
                       description='Filter by years in cohort.',
                       category=c4.id,
                       is_numeric=True)
-    i45 = models.Item(name='Intake Date',
-                      description='Date when added to cohort.',
-                      category=c4.id,
-                      is_numeric=True)
-    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41, i42, i43, i44, i45]
+    cis = [i11, i12, i13, i14, i21, i22, i31, i32, i41, i42, i43, i44]
 
     mf = [models.Value(name='male'), models.Value(name='female')]
     v3 = models.Value(name='white')
@@ -291,7 +287,6 @@ def load(count):
     casi = [models.Value(name=str(x)) for x in range(0, 101)]
     yn = [models.Value(name='yes'), models.Value(name='no')]
     status = [models.Value(name='alive'), models.Value(name='dead')]
-    intake_dates = [models.Value(name=str(x)) for x in range(1980, 2016)]
 
     load_all(*cis + mf + race + ages + yn + casi + status, commit=True)
     # load subjects with random data
@@ -300,8 +295,7 @@ def load(count):
         for item, vals, label in [(i11, ages, 'age_bl'), (i11b, ages, 'age_fu'), (i12, mf, 'sex'), (i13, race, None),
                                   (i14, yn, None),
                                   (i21, casi, None), (i22, casi, None), (i31, yn, None), (i32, yn, None),
-                                  (i41, status, 'enrollment'), (None, None, 'enrollment-years'),
-                                  (i45, intake_dates, 'intake_date')]:
+                                  (i41, status, 'enrollment'), (None, None, 'enrollment-years')]:
             if vals:
                 sel = random.choice(vals)
                 db.session.add(models.Variable(case=i, item=item.id, value=sel.id))
