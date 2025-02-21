@@ -22,6 +22,7 @@ from loguru import logger
 from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
+from load_utils import clean_text_for_web
 
 TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
     models.Variable, models.DataModel, models.Item,
@@ -350,7 +351,9 @@ def add_tabs(tab_file):
             if not line or line.startswith('#'):
                 continue
             name, tab_order, text_type, *text = line.split('==')
-            t = models.TabData(header=name, text='=='.join(text),
+            name = clean_text_for_web(name)
+            text = clean_text_for_web('=='.join(text))
+            t = models.TabData(header=name, text=text,
                                line=i, order=int(tab_order), text_type=text_type)
             db.session.add(t)
     db.session.commit()
@@ -372,8 +375,8 @@ def add_comments(comment_file):
             if not line or line.startswith('#'):
                 continue
             location, line_number, *text = line.split('==')
-            c = models.Comment(location=location, line=line_number,
-                               comment='=='.join(text))
+            comment = clean_text_for_web('=='.join(text))
+            c = models.Comment(location=location, line=line_number, comment=comment)
             db.session.add(c)
     db.session.commit()
     logger.info(f'Comments committed to database.')

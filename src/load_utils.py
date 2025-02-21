@@ -19,3 +19,18 @@ parser.add_argument('--dd-description-column',
                     help='Name of description column in document; should discuss details of the variable')
 parser.add_argument('--dd-value-column',
                     help='Name of values column in document; what the possible values are for the label')
+
+
+TEXT_SUBS = {
+    '”': '"',
+    '“': '"',
+    "’": "'",
+    "‘": "'",
+    '||||': '\n',
+    '||': '\n',
+}
+
+def clean_text_for_web(text):
+    for src, repl in TEXT_SUBS.items():
+        text = text.replace(src, repl)
+    return text

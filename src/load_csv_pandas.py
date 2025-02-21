@@ -19,6 +19,7 @@ from collections import defaultdict, namedtuple
 import sqlalchemy as sqla
 from pandas import to_numeric
 
+from load_utils import clean_text_for_web
 from utils import xlsx_to_list
 
 from dqt_api import db, app, cors, whooshee
@@ -398,8 +399,8 @@ def unpack_domains(categorization_csv, min_priority=0):
                 COLUMN_TO_LABEL[row.name] = row.label
                 if row.values:  # these "categories" are really ITEMS
                     if re.match(r'\w{1,3}\s*\=', row.values.strip()):
-                        i = models.Item(name=row.label,
-                                        description=row.description,
+                        i = models.Item(name=clean_text_for_web(row.label),
+                                        description=clean_text_for_web(row.description),
                                         category=domain_instance.id)
                         for cat in row.values.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
