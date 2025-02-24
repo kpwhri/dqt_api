@@ -119,7 +119,7 @@ def add_items(items, datamodel_vars, use_desc=False):
     res = {}
 
     def add(it, excluded=False):
-        has_age_year = 'age' in it or 'yr' in it or 'year' in it
+        has_age_year = 'age' in it or ('yr' in it and 'yrs' not in it) or ('year' in it and 'years' not in it)
         has_date = 'dt' in it or 'date' in it
         res[item] = ItemVar(it, excluded=excluded, has_date=has_date, has_age_year=has_age_year)
 
@@ -210,12 +210,13 @@ def save_data_model(graph_data):
 
 
 def parse_csv(fp, datamodel_vars,
-              items_from_data_dictionary_only):
+              items_from_data_dictionary_only, skip_rounding: set[str] = None):
     """
     Load csv file into database, committing after each case.
     :param datamodel_vars:
     :param items_from_data_dictionary_only:
     :param fp: path to csv file
+    :param skip_rounding: set of columns names (i.e., variable names)
     :return:
     """
     if not DOMAINS:
@@ -245,10 +246,18 @@ def parse_csv(fp, datamodel_vars,
         cdf = cdf[~cdf[col].isin({'.', '', 'missing'})]
         # handle date: convert to year
         if items[col].has_date:
-            cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_floor))
+            if col in skip_rounding:
+                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int))
+                logger.warning(f'Skipping rounding for column with date: {col}')
+            else:
+                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_floor))
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif items[col].has_age_year:
-            cdf = pd.DataFrame(cdf[col].apply(int_floor))
+            if col in skip_rounding:
+                cdf = pd.DataFrame(cdf[col].apply(int))
+                logger.warning(f'Skipping rounding for column with age/year: {col}')
+            else:
+                cdf = pd.DataFrame(cdf[col].apply(int_floor))
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif curr_item in VALUES_BY_ITEM:  # categorisation/ordering already assigned
             values = cdf[col].unique()
@@ -541,6 +550,8 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
+    parser.add_argument('--skip-rounding', nargs='+', type=str.lower,
+                        help='Variables names (the column names, not display names) to skip rounding.')
 
     args, unk = parser.parse_known_args()
 
@@ -567,7 +578,8 @@ def main():
             logger.debug('Adding comments from file.')
             add_comments(args.comment_file)
         logger.debug('Parsing CSV file.')
-        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only,
+                  skip_rounding=set(args.skip_rounding))
 
         if args.dd_input_file:
             # optionally generate and store the data dictionary
