@@ -22,6 +22,7 @@ def initialize(app, db):
         return
     except Exception as e:
         app.logger.info(f'Failed to load file cache, rebuilding: {e}')
+    app.logger.info('Building cache: this may take a few minutes.')
     app.logger.debug('Initializing...loading population size...')
     app.config['POPULATION_SIZE'] = db.session.query(models.DataModel).count()
     app.logger.debug('Initializing...precomputing categories...')
