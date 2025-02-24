@@ -262,8 +262,17 @@ def api_get_dictionary():
 
 @lru_cache(maxsize=256)
 def api_filter_chart_helper(jitter=True, arg_list=None):
+    """
+    param: jitter: this is only set to False during pre-computing of default/starting filter
+    """
+
     def jitter_function(x):
-        return jitter_value_by_date(x) if app.config.get('JITTER', True) else x
+        """
+        Apply jitter function unless:
+        * function is called with jitter=False (when precomputing)
+        * or, if config contains JITTER=None
+        """
+        return x if jitter is False or not app.config.get('JITTER', True) else jitter_value_by_date(x)
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
