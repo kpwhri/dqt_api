@@ -324,8 +324,8 @@ Row = namedtuple('Row', 'domain description name label priority values')
 
 class CategorizationReader:
 
-    def __init__(self, csv_file):
-        self.fh = open(csv_file, newline='')
+    def __init__(self, csv_file, encoding='utf8'):
+        self.fh = open(csv_file, newline='', encoding=encoding)
         self.reader = csv.reader(self.fh)
         header = next(self.reader)
         self.data = {}
@@ -394,8 +394,8 @@ def unpack_domains(categorization_csv, min_priority=0):
                     db.session.add(domain_instance)
                     db.session.commit()
                     DOMAINS[row.domain] = domain_instance
-                COLUMN_TO_DESCRIPTION[row.name] = row.description
-                COLUMN_TO_LABEL[row.name] = row.label
+                COLUMN_TO_DESCRIPTION[row.name] = clean_text_for_web(row.description)
+                COLUMN_TO_LABEL[row.name] = clean_text_for_web(row.label)
                 if row.values:  # these "categories" are really ITEMS
                     if re.match(r'\w{1,3}\s*\=', row.values.strip()):
                         i = models.Item(name=clean_text_for_web(row.label),
@@ -446,8 +446,8 @@ def unpack_domains(categorization_csv, min_priority=0):
                                         VALUES_BY_ITEM[row.name]['+'].append((func, v))
                             db.session.commit()
                     else:
-                        i = models.Item(name=row.label,
-                                        description=row.description,
+                        i = models.Item(name=clean_text_for_web(row.label),
+                                        description=clean_text_for_web(row.description),
                                         category=domain_instance.id,
                                         is_numeric=True)
                     ITEMS[row.name] = i
