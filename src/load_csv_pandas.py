@@ -83,6 +83,9 @@ def int_round(x, base=5):
     """Round a number to the nearest 'base' """
     return int(base * round(float(x) / base))
 
+def int_only(x):
+    return int(float(x))
+
 
 def int_floor(x, base=5):
     """Round number down to the nearest 'base' """
@@ -102,7 +105,7 @@ def add_categories():
     db.session.commit()
 
 
-ItemVar = namedtuple('ItemVar', 'variable excluded has_date has_age_year')
+ItemVar = namedtuple('ItemVar', 'variable excluded has_date has_age_year has_years')
 
 
 def add_items(items, datamodel_vars, use_desc=False):
@@ -119,9 +122,13 @@ def add_items(items, datamodel_vars, use_desc=False):
     res = {}
 
     def add(it, excluded=False):
-        has_age_year = 'age' in it or ('yr' in it and 'yrs' not in it) or ('year' in it and 'years' not in it)
+        # if 'age' or 'yr' in variable name, set these to be rounded down to nearest 5 (e.g., 'age_bl': 94 -> 90)
+        has_age_year = 'age' in it or 'yr' in it or 'year' in it
+        # if year is plural, suggests range (e.g., followup_years '19.1' -> 19), so allow it to be more precise
+        has_years = ('yr' in it and 'yrs' in it) or ('year' in it and 'years' in it)
+        # if year is date, extract year-only and round down to nearest 5 (death_yr 1999 -> 1995)
         has_date = 'dt' in it or 'date' in it
-        res[item] = ItemVar(it, excluded=excluded, has_date=has_date, has_age_year=has_age_year)
+        res[item] = ItemVar(it, excluded=excluded, has_date=has_date, has_age_year=has_age_year, has_years=has_years)
 
     desc = {i[:-5] for i in items if i.endswith('_desc')}
     for item in items:
@@ -158,7 +165,12 @@ def line_not_empty(lst):
     return bool(lst and lst[0])
 
 
-def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars=None):
+def add_values(cdf, col, item, lookup_col=None, graph_data = None, datamodel_vars: dict = None):
+    """
+    Add all elements from `col` to database.
+
+    If graph_data supplied, this variable is used in the data_model to control the two graphs and table.
+    """
     if lookup_col is None or lookup_col not in cdf.columns:
         lookup_col = col
     for row in cdf[[col, lookup_col]].drop_duplicates().itertuples():
@@ -247,14 +259,14 @@ def parse_csv(fp, datamodel_vars,
         # handle date: convert to year
         if items[col].has_date:
             if col in skip_rounding:
-                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int))
+                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_only))
                 logger.warning(f'Skipping rounding for column with date: {col}')
             else:
                 cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_floor))
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
-        elif items[col].has_age_year:
+        elif items[col].has_age_year or items[col].has_years:
             if col in skip_rounding:
-                cdf = pd.DataFrame(cdf[col].apply(int))
+                cdf = pd.DataFrame(cdf[col].apply(int_only))
                 logger.warning(f'Skipping rounding for column with age/year: {col}')
             else:
                 cdf = pd.DataFrame(cdf[col].apply(int_floor))
@@ -537,7 +549,7 @@ def main():
     parser.add_argument('--enrollment', required=True, type=str.lower,
                         help='Variable for enrollment status (for graphing).')
     parser.add_argument('--followup-years', required=True, type=str.lower,
-                        help='Variable for years of presence in cohort (for graphing).')
+                        help='Variable for years of presence in cohort (for graphing). Raw value will be used.')
     parser.add_argument('--categorization-csv', required=True,
                         help='CSV/TSV containing columns Variable/Column-Category-ColumnDescription')
     parser.add_argument('--minimum-priority', type=int, default=0,
@@ -550,7 +562,7 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
-    parser.add_argument('--skip-rounding', nargs='+', type=str.lower,
+    parser.add_argument('--skip-rounding', nargs='+', type=str.lower, default=set(),
                         help='Variables names (the column names, not display names) to skip rounding.')
 
     args, unk = parser.parse_known_args()
@@ -579,7 +591,7 @@ def main():
             add_comments(args.comment_file)
         logger.debug('Parsing CSV file.')
         parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only,
-                  skip_rounding=set(args.skip_rounding))
+                  skip_rounding=set(args.skip_rounding) | {args.followup_years})
 
         if args.dd_input_file:
             # optionally generate and store the data dictionary
