@@ -98,6 +98,16 @@ Here's an example for the sheet named `Demographics`:
 
 All of these variable labels will appear in the left-hand filter of the web app under their respective domain. Only the values which appear in the dataset will be shown. For example, if no one is deceased, only `Enrolled` and `Disenrolled` options for `Enrollment` will display. Real values will appear as ranges (and the range/step will be inferred from the data).
 
+Other notes:
+* Some rounding will be applied to all float values (to 1 decimal point)
+* Variable names (not labels) containing 'age' or 'yr' or 'year' will be rounded down to nearest 5 to reduce re-identifiability
+  * Since the filters are locked to a range (e.g., 0-5 not 0-0) and cannot be specified individually, this should have minimal impact on exploring a cohort
+  * To exclude this rounding, pass `--skip-rounding edu_yr age_bl` at runtime to `load_csv_pandas.csv`
+* Variable names (not labels) containing 'yrs' or 'years' will be rounded to nearest 1 (e.g., a float 18.1 -> 18 for 'followup_years')
+* Variable names (not labels) containing 'date' or 'dt' will be assumed to be dates and have their YEAR extracted and rounded to nearest 5 to reduce re-identifiability
+  * Since the filters are locked to a range (e.g., 0-5 not 0-0) and cannot be specified individually, this should have minimal impact on exploring a cohort
+  * To exclude this rounding, pass `--skip-rounding uni_dt death_date` at runtime to `load_csv_pandas.csv`
+
 This can be easily transformed into the `categorization-csv` file required by `load_csv_pandas.py` using:
 
 ```commandline
@@ -212,3 +222,21 @@ FAQ==2==text==The ABC study is a longitudinal study of...
 FAQ==2==header==How do I use the data query tool?
 FAQ==2==text==The data query tool provides frequencies of study participants by age...
 ```
+
+# Troubleshooting
+
+## Why do the values in the table and/or chart not add up?
+
+By default, we recommend that the data is fuzzed in a number of ways to protect human subjects. If this is for internal use, etc., then both masking and jitter can be disabled.
+
+### JITTER
+
+Jitter is set by `JITTER = 'random string'`, and to disable this can be set to `JITTER = None`. On a daily basis, all of the values returned to the graphs/chart will be randomly increased or decreased by a small amount (0-3). This helps reduce reidentifiability, protecting human subjects, while not particularly altering the trends in the data.
+
+### MASKING
+
+Masking is set by `MASK = 5` in the `config.py`, and can be turned off by setting `MASK = 0`. For small cells (defined as `size <= MASK`), these will not be shown
+
+## Why are some categories/options not being displayed in the front-end web tool?
+
+If there are no examples in the data of a particular category/value, these will not be displayed on the front-end. A workaround would be to add an extra (fake) individual with this category/value where the option will be provided but masked. Having an extra individual should not meaningfully impact any of the trends displayed in the graphs/data.
