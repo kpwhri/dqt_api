@@ -83,8 +83,10 @@ def int_round(x, base=5):
     """Round a number to the nearest 'base' """
     return int(base * round(float(x) / base))
 
+
 def int_only(x):
-    return int(float(x))
+    """Convert to float, then round to nearest 1."""
+    return int_round(x, base=1)
 
 
 def int_floor(x, base=5):
@@ -165,7 +167,7 @@ def line_not_empty(lst):
     return bool(lst and lst[0])
 
 
-def add_values(cdf, col, item, lookup_col=None, graph_data = None, datamodel_vars: dict = None):
+def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars: dict = None):
     """
     Add all elements from `col` to database.
 
