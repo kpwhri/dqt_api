@@ -17,6 +17,8 @@ from datetime import datetime
 import sqlalchemy as sqla
 from pandas import to_numeric
 
+from load_csv_pandas import add_items, add_categories, line_not_empty, int_floor, int_round, unpack_domains, \
+    add_data_dictionary, int_only
 from utils import xlsx_to_list
 
 from dqt_api import db, app, cors, whooshee
@@ -35,138 +37,15 @@ VALUES_BY_ITEM = defaultdict(dict)  # item -> id -> models.Value; for pre-define
 
 ITEMS = {}  # name -> models.Item
 
-
-def clean_number(value):
-    """Remove spaces and dollar signs to convert to numeric"""
-    if isinstance(value, (int, float)):
-        return value
-    return value.replace(',', '').replace('$', '').strip()
-
-
-def create_function_for_range(value: str):
-    """Create function that defines a particular value/expression
-
-    E.g., income in range $10,000 - $20,000
-    """
-    # remove any problems for ints
-    value = clean_number(value)
-    to_numeric_func = float if '.' in value else int
-    if value[-1] == '+':  # gte
-        value = to_numeric_func(value.rstrip('+'))
-        return lambda x: to_numeric_func(clean_number(x)) >= value
-    elif value[-1] == '-':  # lte
-        value = to_numeric_func(value.rstrip('-'))
-        return lambda x: to_numeric_func(clean_number(x)) <= value
-    elif value.startswith('>='):
-        value = to_numeric_func(value[2:])
-        return lambda x: to_numeric_func(clean_number(x)) >= value
-    elif value.startswith('<='):
-        value = to_numeric_func(value[2:])
-        return lambda x: to_numeric_func(clean_number(x)) <= value
-    elif value.startswith('>'):
-        value = to_numeric_func(value[1:])
-        return lambda x: to_numeric_func(clean_number(x)) > value
-    elif value.startswith('<'):
-        value = to_numeric_func(value[1:])
-        return lambda x: to_numeric_func(clean_number(x)) < value
-    elif '-' in value:  # assumes end is EXCLUSIVE
-        v1, v2 = value.split('-')
-        v1 = to_numeric(clean_number(v1))
-        v2 = to_numeric(clean_number(v2))
-        return lambda x: v1 <= to_numeric_func(clean_number(x)) < v2
-
-
-def int_round(x, base=5):
-    """Round a number to the nearest 'base' """
-    return int(base * round(float(x) / base))
-
-
-def int_floor(x, base=5):
-    """Round number down to the nearest 'base' """
-    return int(float(x) - (float(x) % base))
-
-
-def add_categories():
-    """
-    Add categories to database based on the specification in
-    'column_to_category' global variable.
-    :return:
-    """
-    for cat in set(COLUMN_TO_DOMAIN.values()):
-        c = models.Category(name=cat)
-        DOMAINS[cat] = c
-        db.session.add(c)
-    db.session.commit()
-
-
-ItemVar = namedtuple('ItemVar', 'variable excluded has_date has_age_year')
-
-
-def add_items(items, datamodel_vars, use_desc=False):
-    """
-    Add items to database along with their descriptions, and commit.
-
-    :param datamodel_vars: dict of variables stored in data_model table
-    :param use_desc: use variables that end in '_desc'
-        these already include a descriptive value rather than a numeric reference to
-        the value
-    :param items: label to display for each item
-    :return:
-    """
-    res = []
-
-    def add(it, excluded=False):
-        has_age_year = 'age' in it or 'yr' in it or 'year' in it
-        has_date = 'dt' in it or 'date' in it
-        res.append(ItemVar(it, excluded=excluded, has_date=has_date, has_age_year=has_age_year))
-
-    desc = {i[:-5] for i in items if i.endswith('_desc')}
-    for item in items:
-        has_desc = False  # HACK: certain labels I only want when they end in "_desc"
-        if item.endswith('_desc'):
-            if use_desc:
-                item = item[:-5]
-                has_desc = True
-            else:  # skip if not using descending
-                add(item, excluded=True)
-                continue
-        if item in COLUMN_TO_LABEL and (item not in desc or has_desc or not use_desc):
-            # item = COLUMN_TO_LABEL[item]
-            add(item, excluded=False)
-            if item not in ITEMS:
-                i = models.Item(name=COLUMN_TO_LABEL[item],
-                                description=COLUMN_TO_DESCRIPTION[item],
-                                category=DOMAINS[COLUMN_TO_DOMAIN[item]].id)
-                ITEMS[item] = i
-                db.session.add(i)
-        elif item in datamodel_vars:
-            add(datamodel_vars[item], excluded=False)
-        elif item in desc:  # desc version chosen
-            add(item, excluded=True)
-        else:
-            logger.warning(f'Variable not marked for inclusion: "{item}".')
-            add(item, excluded=True)
-    db.session.commit()
-    return res
-
-
-def line_not_empty(lst):
-    """Check if list is not empty and first value is not empty"""
-    return bool(lst and lst[0])
-
-
-def get_max_values_by_item(value, item):
-    max_val = max(VALUES_BY_ITEM[item].keys())
-    min_val = min(VALUES_BY_ITEM[item].keys())
-
-
 def parse_csv(fp, datamodel_vars,
-              items_from_data_dictionary_only):
+              items_from_data_dictionary_only,
+              skip_rounding: set[str] = None):
     """
     Load csv file into database, committing after each case.
     :param datamodel_vars:
     :param items_from_data_dictionary_only:
     :param fp: path to csv file
+    :param skip_rounding: set of columns names (i.e., variable names)
     :return:
     """
     items = []
@@ -195,16 +74,25 @@ def parse_csv(fp, datamodel_vars,
                     if items[j].has_date and len(value) >= 6:
                         # convert date to year
                         if re.match(r'(\d{2}\w{3}\d{4}|\d{1,2}\/\d{1,2}\/\d{4})', value):
-                            value = str(int_floor(value[-4:]))
+                            if skip_rounding:
+                                value = str(int_only(value[-4:]))
+                            else:
+                                value = str(int_floor(value[-4:]))
                         elif re.match(r'(\d{2}\w{3}\d{2}|\d{1,2}\/\d{1,2}\/\d{2})', value):
-                            value = int_floor(value[-2:])
+                            if skip_rounding:
+                                value = int_only(value[-2:])
+                            else:
+                                value = int_floor(value[-2:])
                             if value <= curr_year:
                                 value = '20{}'.format(value)
                             else:
                                 value = '19{}'.format(value)
                     elif items[j].has_age_year:
                         try:
-                            value = str(int_floor(value))
+                            if skip_rounding:
+                                value = str(int_only(value))
+                            else:
+                                value = str(int_floor(value))
                         except ValueError:
                             pass
 
@@ -301,195 +189,10 @@ def parse_csv(fp, datamodel_vars,
     logger.info(f'Done! Finished loading variables.')
 
 
-Row = namedtuple('Row', 'domain description name label priority values')
-
-
-class CategorizationReader:
-
-    def __init__(self, csv_file):
-        self.fh = open(csv_file, newline='')
-        self.reader = csv.reader(self.fh)
-        header = next(self.reader)
-        self.data = {}
-        for i, column in enumerate(header):
-            column = column.lower()
-            for label in {'name', 'label', 'domain', 'description', 'priority', 'values'} - self.data.keys():
-                if label in column:  # variable name
-                    self.data[label] = i
-
-    def _get_data(self, row, label, default=None):
-        try:
-            return row[self.data[label]]
-        except KeyError:
-            if default is None:
-                raise ValueError(f'Column {label} is required.')
-            return default
-
-    def __iter__(self) -> Row:
-        for row in self.reader:
-            # enforce limits
-            description = self._get_data(row, 'description')
-            if len(description) > 499:
-                description = description[:496] + '...'
-            yield Row(
-                domain=self._get_data(row, 'domain'),
-                description=description,
-                name=self._get_data(row, 'name').lower(),
-                label=self._get_data(row, 'label'),
-                priority=int(self._get_data(row, 'priority', 0)),
-                values=self._get_data(row, 'values', 0),
-            )
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.fh.close()
-
-
-def unpack_domains(categorization_csv, min_priority=0):
-    """
-    Primary entry point to move categories, items, and values into the database
-    :param categorization_csv:
-        columns:
-            * Domain: domain of the variable
-            * Variable description: short description of variable for hover text
-            * Variable name: program shorthand to reference variable
-            * Variable label: human-readable display label for the variable
-            * Values: values separated by '=='
-                e.g., 1=male||2=female
-            * Priority (optional): number showing importance of variable (higher is more important)
-    :param min_priority: limit the priority by only allowing >= priorities; allow all=0
-    :return:
-    """
-    global COLUMN_TO_DOMAIN, COLUMN_TO_DESCRIPTION, COLUMN_TO_LABEL
-    logger.info(f'Unpacking domains from the categorisation CSV file.')
-    with CategorizationReader(categorization_csv) as rows:
-        for row in rows:
-            if row.priority >= min_priority:
-                COLUMN_TO_DOMAIN[row.name] = row.domain
-                if row.domain in DOMAINS:
-                    domain_instance = DOMAINS[row.domain]
-                else:  # not yet added
-                    logger.info(f'Adding variables from domain {row.domain}')
-                    domain_instance = models.Category(name=row.domain, order=len(DOMAINS))
-                    db.session.add(domain_instance)
-                    db.session.commit()
-                    DOMAINS[row.domain] = domain_instance
-                COLUMN_TO_DESCRIPTION[row.name] = row.description
-                COLUMN_TO_LABEL[row.name] = row.label
-                if row.values:  # these "categories" are really ITEMS
-                    if re.match(r'\w{1,3}\s*\=', row.values.strip()):
-                        i = models.Item(name=row.label,
-                                        description=row.description,
-                                        category=domain_instance.id)
-                        for cat in row.values.split('||'):
-                            order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
-                            value = value.strip().lower()  # standardize all values to lowercase
-                            # get the categorization order
-                            if order == '.' or value == 'missing':
-                                logger.warning(f'Ignoring value for {row.name}: {cat} (assuming this is missing).')
-                                continue
-                            lookup_value = None
-                            try:  # numbers first
-                                order = int(order)  # handle decimals
-                            except ValueError:  # letters appear after numbers
-                                # handle order of float (e.g., 1.5)
-                                if '.' in order:
-                                    try:
-                                        lookup_value = float(order)
-                                    except ValueError:
-                                        pass
-                                    else:
-                                        order = int(lookup_value)
-                                elif len(value) == 1:  # handle single letter
-                                    try:
-                                        order = int(order, 36)
-                                    except ValueError as e:
-                                        logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
-                                        raise
-                                else:
-                                    logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
-                                    raise
-                            v = models.Value(name=value, order=order)
-                            db.session.add(v)
-                            # prefer lookup value so that 1.5 and 1 don't map to same order
-                            VALUES_BY_ITEM[row.name][lookup_value or order] = v
-                            if value[-1] in {'+', '-'} or value[0] in {'<', '>'} or '-' in value:
-                                if '+' not in VALUES_BY_ITEM[row.name]:
-                                    VALUES_BY_ITEM[row.name]['+'] = []  # for values greater than
-                                try:
-                                    func = create_function_for_range(value)
-                                except ValueError:
-                                    pass
-                                else:
-                                    if func is not None:
-                                        VALUES_BY_ITEM[row.name]['+'].append((func, v))
-                            db.session.commit()
-                    else:
-                        i = models.Item(name=row.label,
-                                        description=row.description,
-                                        category=domain_instance.id,
-                                        is_numeric=True)
-                    ITEMS[row.name] = i
-                    db.session.add(i)
-    logger.info(f'Committing updates to database.')
-    db.session.commit()
-    logger.info(f'Finished unpacking domains.')
-
-
-def add_data_dictionary(input_files, file_name, label_column, name_column, category_col,
-                        descript_col, value_column, **kwargs):
-    """
-
-    :param file_name:
-    :param input_files: xls(x) files with columns specified below
-    :param label_column: column with common name
-    :param name_column: column with variable name
-    :param category_col: if None, use sheet names as categories
-    :param descript_col: column with description of the variable
-    :param value_column: column that shows the various variables
-    :param kwargs: n/a
-    :return:
-    """
-    logger.info(f'Uploading data dictionary to database.')
-    for input_file in input_files:
-        if 'xls' in input_file.split('.')[-1]:
-            if category_col:
-                columns_to_keep = [label_column, name_column, descript_col, value_column, category_col]
-            else:
-                columns_to_keep = [label_column, name_column, descript_col, value_column]
-            for label, name, descript, value, category in xlsx_to_list(
-                    input_file,
-                    columns_to_keep=columns_to_keep,
-                    include_header=False,
-                    append_sheet_name=None if category_col else 'Category'
-            ):
-                if name is None:
-                    continue
-                de = models.DataEntry(
-                    label=label,
-                    variable=name,
-                    values=value,
-                    description=descript,
-                    category=category
-                )
-                db.session.add(de)
-            with open(input_file, 'rb') as fh:
-                txt = fh.read()
-                df = models.DataFile(
-                    filename=file_name,
-                    file=txt,
-                    md5_checksum=hashlib.md5(txt).hexdigest()
-                )
-                db.session.add(df)
-        else:
-            raise ValueError('Unrecognized file extension: {}'.format(input_file.split('.')[-1]))
-    db.session.commit()  # commit all files together, simplifies re-running should an error occur
-    logger.info(f'Finished uploading data dictionary.')
-
-
 def main():
+    logger.warning(f'This script is not supported! Prefer `load_csv_pandas.csv`! '
+                   f'Only use this script if data is too big for in memory.')
+
     from load_utils import parser  # data dictionary loading options
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
@@ -522,6 +225,8 @@ def main():
     parser.add_argument('--comment-file', required=False,
                         help='"=="-separated file with comments which can be appended '
                              'to various locations (only "table" currently supported).')
+    parser.add_argument('--skip-rounding', nargs='+', type=str.lower, default=set(),
+                        help='Variables names (the column names, not display names) to skip rounding.')
 
     args, unk = parser.parse_known_args()
 
@@ -548,7 +253,8 @@ def main():
             logger.debug('Adding comments from file.')
             add_comments(args.comment_file)
         logger.debug('Parsing CSV file.')
-        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only)
+        parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only,
+                  skip_rounding=set(args.skip_rounding) | {args.followup_years})
 
         if args.dd_input_file:
             # optionally generate and store the data dictionary
