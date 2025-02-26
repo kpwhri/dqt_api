@@ -33,8 +33,9 @@ use cases.
     * `python manage.py --method create --config /path/to/config.py`
     * `python manage.py --method createuserdata --config /path/to/config.py`
 
-5. Load data using `load_csv.py`
-    * This isn't meant to be a general purpose load script, so it will require some modification on your part
+5. Load data using `load_csv_pandas.py`
+    * `load_csv` and `load_csv_async` probably work, but should only be relied on if data is too large to fit in memory
+    * This is meant to be a general purpose load script, but it may require some modification on your part
     * You can also auto-fill 100 subjects by using:
         * `python manage.py --method load --count 100 --config /path/to/config.py`
 
@@ -97,7 +98,7 @@ Here's an example for the sheet named `Demographics`:
 
 All of these variable labels will appear in the left-hand filter of the web app under their respective domain. Only the values which appear in the dataset will be shown. For example, if no one is deceased, only `Enrolled` and `Disenrolled` options for `Enrollment` will display. Real values will appear as ranges (and the range/step will be inferred from the data).
 
-This can be easily transformed into the `categorization-csv` file required by `load_csv.py` using:
+This can be easily transformed into the `categorization-csv` file required by `load_csv_pandas.py` using:
 
 ```commandline
 python xlsx_to_csv.py 
@@ -146,14 +147,13 @@ data dictionary).
   cohort dataset (e.g., 'enrolled' rather than '0')
 * no: this can just be a number/date in the cohort dataset
 
-| Name             | Label                  | Description                                                                       | `load_csv` Argument               | Requires String |
+| Name             | Label                  | Description                                                                       | `load_csv_pandas` Argument        | Requires String |
 |------------------|------------------------|-----------------------------------------------------------------------------------|-----------------------------------|-----------------|
 | `age_bl`         | Age at Baseline        | Variable for age at baseline (i.e., cohort entry).                                | `--age-bl age_bl`                 | No              |
 | `age_fu`         | Age at Follow-up       | Variable for age at baseline (i.e., cohort entry).                                | `--age-bl age_bl`                 | No              |
 | `gender`         | Gender/sex             | Variable for gender or sex.                                                       | `--gender gender`                 | Yes             |
 | `enrollment`     | Enrollment Status      | Variable for enrollment status (e.g., currently enrolled? deceased? disenrolled?) | `--enrollment current_status`     | Yes             |
 | `followup-years` | Years of followup      | Variable for the number of years of data available for this subject               | `--followup-years followup_years` | No              |
-| `intake-date`    | Date enrolled in study | Variable with the date in which subject was enrolled in the study                 | `--intake-date intake_date`       | No              |
 
 ### Masking and Jitter
 
@@ -167,7 +167,7 @@ WARNING: Note that the jitter and masking can appear to cause peculiar results i
 
 ### Enabling Search
 
-After running the `load_csv.py` script, ensure that the resulting `whooshee.idx` folder is moved to wherever specified by the `WHOOSHEE_DIR` in the `cnofig,py` file.
+After running the `load_csv_pandas.py` script, ensure that the resulting `whooshee.idx` folder is moved to wherever specified by the `WHOOSHEE_DIR` in the `cnofig,py` file.
 
 ### Config
 
