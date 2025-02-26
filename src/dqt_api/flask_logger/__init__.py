@@ -86,6 +86,8 @@ class FlaskLoguru(object):
         config.setdefault(log_format, '')
         config.setdefault(log_enqueue, True)
         config.setdefault(log_serialize, True)
+        if 'LOG_KEY' not in config:
+            raise ValueError('LOG_KEY must be specified in Flask\'s config.py file! Use `os.urandom(32)` or see doco.')
 
         self._set_loguru(app, config)
 

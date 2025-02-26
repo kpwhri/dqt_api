@@ -176,9 +176,9 @@ Connection and parameter settings are placed in a `config.py` file.
 ```python
 # base directory for logs, etc. to be stored in
 BASE_DIR = r'C:\data\config\dqt'
-# os.urandom(n)
+# set SECRET_KEY to os.urandom(16)
 SECRET_KEY = b'>)r\x01\xc5\xeap q\xa1|\x89\xa8gq\tX\x95\xb3\x8d\xadgA\xf7'
-# os.urandom(32)
+# set LOG_KEY as os.urandom(32) [must be 16, 24, or 32] retain this to decrypt logs
 LOG_KEY = b'6\x1d\xef\n\xd8\x8clT/\xf3h1v\xebfF\xa6\x9f\xc2\xc0-e"\xab\xd9\xcf\x93\xf6\x1f\xad\xe9c'
 SQLALCHEMY_DATABASE_URI = r'mssql+pyodbc://SERVER/DATABASE?driver=SQL Server'
 AGE_STEP = 5
