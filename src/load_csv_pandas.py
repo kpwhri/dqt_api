@@ -94,6 +94,33 @@ def int_floor(x, base=5):
     return int(float(x) - (float(x) % base))
 
 
+def int_mid(x, base=5):
+    """
+    For rounding to still respect flter ranges, a midpoint must be selected.
+    Suppose the slider bar allows 0,5,10,15,... and we have ages 14,10,8, and 5.
+        If we `int_floor` only:
+            14 -> 10
+            10 -> 10
+            8 -> 5
+            5 -> 5
+        And the user selects the range [0, 5] we will get both 5s (one of which is actually an 8).
+    To avoid this, we'll add half the base back.
+    We must keep track of the ages 5 and 10 because we don't want them to fall in the middle of the range:
+        If we `int_mid(n, base=5)` without checking the prior value:
+            14 -> 12
+            10 -> 12
+            8 -> 7
+            5 -> 7
+        Now the range [5, 10] will include 5, 8 but not 10 (!) since we incremented it.
+
+    NOTE: This will not work if base=1, but that's probably expected since we're clearly int-rounding.
+    """
+    new_x = int_floor(x, base=base)  # get the floor
+    if new_x != x:  # increment if not a range edge/border value which must remain on the edge
+        new_x += base // 2  # get the integer midpoint to set value in the middle of the range
+    return new_x
+
+
 def add_categories():
     """
     Add categories to database based on the specification in
@@ -264,14 +291,14 @@ def parse_csv(fp, datamodel_vars,
                 cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_only))
                 logger.warning(f'Skipping rounding for column with date: {col}')
             else:
-                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_floor))
+                cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_mid))
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif items[col].has_age_year or items[col].has_years:
             if col in skip_rounding:
                 cdf = pd.DataFrame(cdf[col].apply(int_only))
                 logger.warning(f'Skipping rounding for column with age/year: {col}')
             else:
-                cdf = pd.DataFrame(cdf[col].apply(int_floor))
+                cdf = pd.DataFrame(cdf[col].apply(int_mid))
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif curr_item in VALUES_BY_ITEM:  # categorisation/ordering already assigned
             values = cdf[col].unique()
