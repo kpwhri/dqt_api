@@ -78,6 +78,15 @@ def create_function_for_range(value: str):
         v2 = to_numeric(clean_number(v2))
         return lambda x: v1 <= to_numeric_func(clean_number(x)) < v2
 
+def round_top_and_bottom(cdf, col):
+    """
+    must round so that the filters find the lowest and highest at a round number,
+        otherwise, filters might show range of 1992 - 2027 by 5s instead of 1990 - 2025.
+    """
+    cdf[col] = cdf[col].apply(lambda x: int_floor(x) if x == cdf[col].min() else x)
+    cdf[col] = cdf[col].apply(lambda x: int_ceil(x) if x == cdf[col].max() else x)
+    return cdf
+
 
 def int_round(x, base=5):
     """Round a number to the nearest 'base' """
@@ -87,6 +96,11 @@ def int_round(x, base=5):
 def int_only(x):
     """Convert to float, then round to nearest 1."""
     return int_round(x, base=1)
+
+
+def int_ceil(x, base=5):
+    """Round number up to the nearest 'base' """
+    return int(float(x) + (base - float(x) % base) % 5)
 
 
 def int_floor(x, base=5):
@@ -116,6 +130,7 @@ def int_mid(x, base=5):
     NOTE: This will not work if base=1, but that's probably expected since we're clearly int-rounding.
     """
     new_x = int_floor(x, base=base)  # get the floor
+    x = int(float(x))  # ensure same time (i.e., not a string)
     if new_x != x:  # increment if not a range edge/border value which must remain on the edge
         new_x += base // 2  # get the integer midpoint to set value in the middle of the range
     return new_x
@@ -292,6 +307,8 @@ def parse_csv(fp, datamodel_vars,
                 logger.warning(f'Skipping rounding for column with date: {col}')
             else:
                 cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_mid))
+                # must round so that the filters find the lowest and highest at a round number
+                cdf = round_top_and_bottom(cdf, col)
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif items[col].has_age_year or items[col].has_years:
             if col in skip_rounding:
@@ -299,6 +316,8 @@ def parse_csv(fp, datamodel_vars,
                 logger.warning(f'Skipping rounding for column with age/year: {col}')
             else:
                 cdf = pd.DataFrame(cdf[col].apply(int_mid))
+                # must round so that the filters find the lowest and highest at a round number
+                cdf = round_top_and_bottom(cdf, col)
             add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars)
         elif curr_item in VALUES_BY_ITEM:  # categorisation/ordering already assigned
             values = cdf[col].unique()
