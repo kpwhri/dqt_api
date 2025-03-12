@@ -278,7 +278,8 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     cases, no_results_flag = parse_arg_list(arg_list or ())
     if no_results_flag and app.config.get('NULL_FILTER', None):
         return app.config['NULL_FILTER']
-    if app.config.get('PRECOMPUTED_FILTER', None) and (no_results_flag is False or len(cases) >= app.config['POPULATION_SIZE']):
+    if app.config.get('PRECOMPUTED_FILTER', None) and (
+            no_results_flag is False or len(cases) >= app.config['POPULATION_SIZE']):
         return app.config['PRECOMPUTED_FILTER']
 
     # get data for graphs
@@ -304,6 +305,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
         cnt = jitter_function(int(cnt)) if jitter_function(int(cnt)) > mask_value else 0
         enroll_data.append({
+            'id': f'enroll-{label}-count'.lower(),
             'header': '- {} {}'.format(label.capitalize(), get_update_date_text()),
             'value': cnt
         })
@@ -316,13 +318,16 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         followup_years = 0
 
     subject_counts = [
-                         {'header': 'Total {} Population {}'.format(app.config.get('COHORT_TITLE', ''),
+                         {'id': f'total-count',
+                          'header': 'Total {} Population {}'.format(app.config.get('COHORT_TITLE', ''),
                                                                     get_update_date_text()),
                           'value': app.config['POPULATION_SIZE']},
-                         {'header': 'Current Selection',
+                         {'id': f'selected-count',
+                          'header': 'Current Selection',
                           'value': min(selected_subjects, app.config['POPULATION_SIZE'])},
                      ] + enroll_data + sex_counts_bl + [
-                         {'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
+                         {'id': f'followup-years',
+                          'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
                                                                           get_update_date_text()),
                           'value': followup_years}
                      ]
@@ -358,6 +363,7 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
                               mask=mask_value, jitter_function=jitter_function)
         })
         sex_counts.append({
+            'id': f'sex-{label}-count'.lower(),
             'header': '- {}'.format(label),
             'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
         })
