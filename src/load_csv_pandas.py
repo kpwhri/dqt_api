@@ -11,6 +11,7 @@ A second entry is `add_data_dictionary` which optionally uploads a data dictiona
 import csv
 import hashlib
 import string
+from typing import Generator
 
 import pandas as pd
 from loguru import logger
@@ -412,7 +413,7 @@ class CategorizationReader:
                 raise ValueError(f'Column {label} is required.')
             return default
 
-    def __iter__(self) -> Row:
+    def __iter__(self) -> Generator[Row]:
         for row in self.reader:
             # enforce limits
             description = self._get_data(row, 'description')
