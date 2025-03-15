@@ -20,6 +20,7 @@ from loguru import logger
 from sqlalchemy import inspect, text
 
 from dqt_api import db, app, models
+from dqt_api.rounding import int_ceil
 
 
 class LoguruHandler(logging.Handler):
@@ -516,6 +517,9 @@ def _get_range_from_category(category_id, category_name, category_description):
                     new_min = int(math.ceil((ranges[0] - rounded) / rounded)) * rounded
                 new_max = int(math.ceil((ranges[1]) / rounded)) * rounded
                 ranges = [new_min, new_max, rounded]
+
+            if ('year' in item.name.lower() and 'years' not in item.name.lower()) or 'age' in item.name.lower():
+                ranges = [ranges[0], ranges[1], int_ceil(ranges[2], base=5)]
 
         # record data
         res['items'].append({

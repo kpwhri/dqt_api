@@ -20,10 +20,11 @@ from collections import defaultdict, namedtuple
 import sqlalchemy as sqla
 from pandas import to_numeric
 
+from dqt_api.rounding import round_top_and_bottom, int_only, int_mid
 from load_utils import clean_text_for_web
 from utils import xlsx_to_list
 
-from dqt_api import db, app, cors, whooshee
+from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 from dqt_api.manage import add_tabs, add_comments
@@ -78,63 +79,6 @@ def create_function_for_range(value: str):
         v1 = to_numeric(clean_number(v1))
         v2 = to_numeric(clean_number(v2))
         return lambda x: v1 <= to_numeric_func(clean_number(x)) < v2
-
-def round_top_and_bottom(cdf, col):
-    """
-    must round so that the filters find the lowest and highest at a round number,
-        otherwise, filters might show range of 1992 - 2027 by 5s instead of 1990 - 2025.
-    """
-    cdf[col] = cdf[col].apply(lambda x: int_floor(x) if x == cdf[col].min() else x)
-    cdf[col] = cdf[col].apply(lambda x: int_ceil(x) if x == cdf[col].max() else x)
-    return cdf
-
-
-def int_round(x, base=5):
-    """Round a number to the nearest 'base' """
-    return int(base * round(float(x) / base))
-
-
-def int_only(x):
-    """Convert to float, then round to nearest 1."""
-    return int_round(x, base=1)
-
-
-def int_ceil(x, base=5):
-    """Round number up to the nearest 'base' """
-    return int(float(x) + (base - float(x) % base) % 5)
-
-
-def int_floor(x, base=5):
-    """Round number down to the nearest 'base' """
-    return int(float(x) - (float(x) % base))
-
-
-def int_mid(x, base=5):
-    """
-    For rounding to still respect flter ranges, a midpoint must be selected.
-    Suppose the slider bar allows 0,5,10,15,... and we have ages 14,10,8, and 5.
-        If we `int_floor` only:
-            14 -> 10
-            10 -> 10
-            8 -> 5
-            5 -> 5
-        And the user selects the range [0, 5] we will get both 5s (one of which is actually an 8).
-    To avoid this, we'll add half the base back.
-    We must keep track of the ages 5 and 10 because we don't want them to fall in the middle of the range:
-        If we `int_mid(n, base=5)` without checking the prior value:
-            14 -> 12
-            10 -> 12
-            8 -> 7
-            5 -> 7
-        Now the range [5, 10] will include 5, 8 but not 10 (!) since we incremented it.
-
-    NOTE: This will not work if base=1, but that's probably expected since we're clearly int-rounding.
-    """
-    new_x = int_floor(x, base=base)  # get the floor
-    x = int(float(x))  # ensure same time (i.e., not a string)
-    if new_x != x:  # increment if not a range edge/border value which must remain on the edge
-        new_x += base // 2  # get the integer midpoint to set value in the middle of the range
-    return new_x
 
 
 def add_categories():
@@ -232,7 +176,7 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
             if lookup_value in VALUES[item]:
                 value_model = VALUES[item][value]
             else:
-                value_model = models.Value(name=value)
+                value_model = models.Value(name=clean_text_for_web(value))
                 logger.warning(f'Adding new value: {value} = {item}')
                 # VALUES[item][value] = val  # don't need to add since column-based
                 db.session.add(value_model)
@@ -361,7 +305,7 @@ def parse_csv(fp, datamodel_vars,
                         order = max((x for x in VALUES_BY_ITEM[curr_item].keys() if isinstance(x, (int, float))),
                                     default=123) + 1
                         logger.info(f'Adding new category to `{curr_item}`: "{value}" with order {order}')
-                        value_model = models.Value(name=value, order=order)
+                        value_model = models.Value(name=clean_text_for_web(value), order=order)
                         db.session.add(value_model)
                         VALUES_BY_ITEM[curr_item][order] = value_model
                         mapping[value] = order
@@ -417,13 +361,14 @@ class CategorizationReader:
         for row in self.reader:
             # enforce limits
             description = self._get_data(row, 'description')
+            description = clean_text_for_web(description)
             if len(description) > 499:
                 description = description[:496] + '...'
             yield Row(
                 domain=self._get_data(row, 'domain'),
                 description=description,
-                name=self._get_data(row, 'name').lower(),
-                label=self._get_data(row, 'label'),
+                name=clean_text_for_web(self._get_data(row, 'name').lower()),
+                label=clean_text_for_web(self._get_data(row, 'label')),
                 priority=int(self._get_data(row, 'priority', 0)),
                 values=self._get_data(row, 'values', 0),
             )
@@ -464,12 +409,12 @@ def unpack_domains(categorization_csv, min_priority=0):
                     db.session.add(domain_instance)
                     db.session.commit()
                     DOMAINS[row.domain] = domain_instance
-                COLUMN_TO_DESCRIPTION[row.name] = clean_text_for_web(row.description)
-                COLUMN_TO_LABEL[row.name] = clean_text_for_web(row.label)
+                COLUMN_TO_DESCRIPTION[row.name] = row.description  # already cleaned
+                COLUMN_TO_LABEL[row.name] = row.label
                 if row.values:  # these "categories" are really ITEMS
                     if re.match(r'\w{1,3}\s*\=', row.values.strip()):
-                        i = models.Item(name=clean_text_for_web(row.label),
-                                        description=clean_text_for_web(row.description),
+                        i = models.Item(name=row.label,
+                                        description=row.description,
                                         category=domain_instance.id)
                         for cat in row.values.split('||'):
                             order, value = re.split(r'[\=\s]+', cat, maxsplit=1)
@@ -500,7 +445,7 @@ def unpack_domains(categorization_csv, min_priority=0):
                                     logger.error(f'Failed to parse for {row.name} order "{order}" in "{cat}".')
                                     raise
 
-                            v = models.Value(name=value, order=order)
+                            v = models.Value(name=clean_text_for_web(value), order=order)
                             db.session.add(v)
                             # prefer lookup value so that 1.5 and 1 don't map to same order
                             VALUES_BY_ITEM[row.name][lookup_value or order] = v

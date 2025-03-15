@@ -17,8 +17,9 @@ from datetime import datetime
 import sqlalchemy as sqla
 from pandas import to_numeric
 
-from load_csv_pandas import add_items, add_categories, line_not_empty, int_floor, int_round, unpack_domains, \
-    add_data_dictionary, int_only
+from load_csv_pandas import add_items, add_categories, line_not_empty, unpack_domains, \
+    add_data_dictionary
+from dqt_api.rounding import int_round, int_only, int_floor
 from utils import xlsx_to_list
 
 from dqt_api import db, app, cors, whooshee
