@@ -44,8 +44,15 @@ def remove_values(f):
     return new_subject_counts, new_sex_data_bl, new_sex_data_fu, new_sex_data_bl_g, new_sex_data_fu_g
 
 
-def jitter_value_by_date(value):
-    return value + hash(datetime.date.today().strftime('%Y%m%d') + str(app.config.get('JITTER', 'DEFAULT'))) % 6 - 2
+def jitter_and_mask_value_by_date(value, mask=0, label=''):
+    """Add/subtract small increment from value. If resulting `new_value` <= mask, set the result to 0."""
+    incr = hash(
+        datetime.date.today().strftime('%Y%m%d') + str(label) + str(app.config.get('JITTER', 'DEFAULT'))) % 6 - 2
+    new_value = incr + value
+    if new_value > mask:
+        return new_value
+    else:
+        return 0
 
 
 @app.route('/', methods=['GET'])
@@ -62,7 +69,7 @@ def search():
     target = request.args.get('query')
     if len(target) < 3:
         return 'Invalid search: must contain at least 3 characters.'
-    app.logger.info('Searching for: {}'.format(target))
+    app.logger.info(f'Searching for: {target}')
     return jsonify(_search(target))
 
 
@@ -189,7 +196,7 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
     res = [dist[b] for b in range(bins)]
     if group_extra_in_top_bin:
         res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    masked = [jitter_function(r) if jitter_function(r) > mask else 0 for r in res]
+    masked = [jitter_function(r) for r in res]
     return masked
 
 
@@ -201,19 +208,19 @@ def api_filter_export():
         if '~' in val:
             low_val, high_val = val.split('~')
             if high_val and low_val:
-                filters.append('({} >= {} AND {} <= {})'.format(item, low_val, item, high_val))
+                filters.append(f'({item} >= {low_val} AND {item} <= {high_val})')
             elif high_val:
-                filters.append('({} <= {})'.format(item, high_val))
+                filters.append(f'({item} <= {high_val})')
             elif low_val:
-                filters.append('({} >= {})'.format(item, low_val))
+                filters.append(f'({item} >= {low_val})')
         else:
             subfilters = []
             for v in val.split('_'):
                 subfilters.append(db.session.query(models.Value.name).filter_by(id=v).first()[0])
             if len(subfilters) > 1:
-                filters.append('({} IN ({}))'.format(item, ', '.join(subfilters)))
+                filters.append(f'({item} IN ({", ".join(subfilters)}))')
             else:
-                filters.append('({} = {})'.format(item, subfilters[0]))
+                filters.append(f'({item} = {subfilters[0]})')
     app.logger.info(f'Exporting parameters: {filters}')
     return jsonify({'filterstring': ' AND '.join(filters)})
 
@@ -267,13 +274,14 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     param: jitter: this is only set to False during pre-computing of default/starting filter
     """
 
-    def jitter_function(x):
+    def jitter_and_mask_function(x, mask=0, label_=''):
         """
         Apply jitter function unless:
         * function is called with jitter=False (when precomputing)
         * or, if config contains JITTER=None
         """
-        return x if jitter is False or not app.config.get('JITTER', True) else jitter_value_by_date(x)
+        return x if jitter is False or not app.config.get('JITTER', True) else jitter_and_mask_value_by_date(x, mask,
+                                                                                                             label_)
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
@@ -294,20 +302,20 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step()
     # get age counts for each sex
-    age_buckets = ['{}-{}'.format(age, age + age_step - 1) for age in range(age_min, age_max - age_step, age_step)]
-    age_buckets.append('{}+'.format(age_max - age_step))
-    sex_counts_bl, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df, jitter_function,
-                                                mask_value)
-    _, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df, jitter_function,
-                                    mask_value)
+    age_buckets = [f'{age}-{age + age_step - 1}' for age in range(age_min, age_max - age_step, age_step)]
+    age_buckets.append(f'{age_max - age_step}+')
+    sex_counts_bl, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df,
+                                                jitter_and_mask_function, mask_value)
+    _, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df,
+                                    jitter_and_mask_function, mask_value)
 
     enroll_data = []
     selected_subjects = 0
     for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        cnt = jitter_function(int(cnt)) if jitter_function(int(cnt)) > mask_value else 0
+        cnt = jitter_and_mask_function(int(cnt), mask_value, label)
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
-            'header': '- {} {}'.format(label.capitalize(), get_update_date_text()),
+            'header': f'- {label.capitalize()} {get_update_date_text()}',
             'value': cnt
         })
         selected_subjects += cnt
@@ -320,16 +328,14 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
 
     subject_counts = [
                          {'id': f'total-count',
-                          'header': 'Total {} Population {}'.format(app.config.get('COHORT_TITLE', ''),
-                                                                    get_update_date_text()),
+                          'header': f'Total {app.config.get("COHORT_TITLE", "")} Population {get_update_date_text()}'.strip(),
                           'value': app.config['POPULATION_SIZE']},
                          {'id': f'selected-count',
                           'header': 'Current Selection',
                           'value': min(selected_subjects, app.config['POPULATION_SIZE'])},
                      ] + enroll_data + sex_counts_bl + [
                          {'id': f'followup-years',
-                          'header': '{} Follow-up {} (mean years)'.format(app.config.get('COHORT_TITLE', ''),
-                                                                          get_update_date_text()),
+                          'header': f'{app.config.get("COHORT_TITLE", "")} Follow-up {get_update_date_text()} (mean years)'.strip(),
                           'value': followup_years}
                      ]
 
@@ -361,12 +367,12 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
         sex_data['datasets'].append({
             'label': label,
             'data': histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                              mask=mask_value, jitter_function=jitter_function)
+                              jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
         })
         sex_counts.append({
             'id': f'sex-{label}-count'.lower(),
-            'header': '- {}'.format(label),
-            'value': jitter_function(len(age_df)) if jitter_function(len(age_df)) > mask_value else 0
+            'header': f'- {label}',
+            'value': jitter_function(len(age_df), mask_value, label)
         })
     return sex_counts, sex_data
 
@@ -616,10 +622,7 @@ def get_random_string(length):
 
 
 def create_cookie():
-    return '{}{}'.format(
-        get_random_string(10),
-        datetime.datetime.today().strftime('%Y%m%d')
-    )
+    return f'{get_random_string(10)}{datetime.datetime.today().strftime("%Y%m%d")}'
 
 
 @app.route('/api/user/submit', methods=['POST'])
@@ -648,7 +651,7 @@ def submit_user_form():
 def submit_user_cookie():
     cookie = request.json.get('cookie', None)
     if not cookie:  # no cookie
-        app.logger.error('Failed to login cookie: "{}"'.format(cookie))
+        app.logger.error(f'Failed to login cookie: "{cookie}"')
         return jsonify({
             'messages': {
                 'error': ['Auto-login Failed: Unknown']
@@ -657,7 +660,7 @@ def submit_user_cookie():
         })
     # check if cookie not yet used (invalid cookie)
     if not models.UserData.query.filter_by(cookie=cookie).first():
-        app.logger.error('Invalid cookie: "{}"'.format(cookie))
+        app.logger.error(f'Invalid cookie: "{cookie}"')
         return jsonify({
             'messages': {
                 'error': ['Auto-login Failed: Unrecognized']
