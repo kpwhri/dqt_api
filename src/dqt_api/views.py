@@ -274,14 +274,14 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     param: jitter: this is only set to False during pre-computing of default/starting filter
     """
 
-    def jitter_and_mask_function(x, mask=0, label_=''):
+    def jitter_and_mask_function(x, mask=0, label=''):
         """
         Apply jitter function unless:
         * function is called with jitter=False (when precomputing)
         * or, if config contains JITTER=None
         """
         return x if jitter is False or not app.config.get('JITTER', True) else jitter_and_mask_value_by_date(x, mask,
-                                                                                                             label_)
+                                                                                                             label)
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
