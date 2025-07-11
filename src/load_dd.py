@@ -3,11 +3,13 @@ Run this file to build data dictionary only
 """
 from dqt_api import app
 from dqt_api.__main__ import prepare_config
-from load_csv import add_data_dictionary
 from loguru import logger
 
-if __name__ == '__main__':
-    from load_utils import parser
+from dqt_load.argparser import parser
+from dqt_load.data_dictionary import add_data_dictionary
+
+
+def main():
 
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
@@ -29,3 +31,7 @@ if __name__ == '__main__':
             args.dd_description_column,
             args.dd_value_column,
         )
+
+
+if __name__ == '__main__':
+    main()

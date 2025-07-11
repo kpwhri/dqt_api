@@ -1,6 +1,8 @@
 """
 Utilities copied from pycronkd library (last updated: 2020-01-23)
 """
+import csv
+from _collections_abc import Iterable
 
 from openpyxl import load_workbook
 
@@ -87,3 +89,83 @@ def xlsx_to_list(fp, columns_to_keep=None, columns_to_ignore=None, ignore_case=T
     if include_header:
         res.insert(0, res_header)
     return res
+
+
+def xlsx_to_csv(ifp, ofp, columns_to_keep=None, columns_to_ignore=None, ignore_case=True, header_rows=1,
+                append_sheet_name='SheetName', ignore_empty_rows=False, join_multiline=None, encoding='utf8'):
+    """
+
+    :param ifp:
+    :param ofp:
+    :param columns_to_keep:
+    :param columns_to_ignore:
+    :param ignore_case:
+    :param header_rows:
+    :param append_sheet_name:
+    :param ignore_empty_rows:
+    :param join_multiline: character to replace newline characters with
+    :return:
+    """
+    rows = xlsx_to_list(ifp, columns_to_keep, columns_to_ignore, ignore_case, header_rows, append_sheet_name,
+                        include_header=True, ignore_empty_rows=ignore_empty_rows)
+    iterable_to_csv(rows[1:], ofp, rows[0], join_multiline=join_multiline, encoding=encoding)
+
+
+def iterable_to_csv(iterable, csvfile, header=None, col_order=None, join_multiline=None, encoding='utf8', **kwargs):
+    """
+    Convert an input iterable to a csv file.
+
+    Handles lists of lists, dictionary, and even basic input.
+
+    :param join_multiline: character to replace newlines with
+    :param iterable: list or dict, both can contain lists for the columns
+    :param csvfile: output csv filename
+    :param header: variable to include as header, skip header if none
+    :param col_order: specify column order for embedded dict
+    :param kwargs: arguments to pass to call to csv.writer
+    :return:]
+    """
+    with open(csvfile, 'w', encoding=encoding, newline='') as out:
+        writer = csv.writer(out, **kwargs)
+        if header:
+            writer.writerow(header)
+        for row in iterable:
+            if join_multiline:
+                # handle None (e.g., empty description)
+                row = [join_multiline.join(x.split('\n')) if isinstance(x, str) else '' for x in row]
+            if is_iterable(row) and not isinstance(iterable, dict):
+                writer.writerow(row)
+            elif isinstance(iterable, dict):
+                # embedded dictionary
+                if isinstance(iterable[row], dict):
+                    if col_order:
+                        cols = [row]
+                        for col in col_order:
+                            if col in iterable[row]:
+                                cols.append(iterable[row][col])
+                        writer.writerow(cols)
+                    elif set(header) & set(iterable[row].keys()):
+                        cols = [row]
+                        for col in header:
+                            if col in iterable[row]:
+                                cols.append(iterable[row][col])
+                        writer.writerow(cols)
+                    else:
+                        writer.writerow([row] + list(iterable[row]))
+                # for list: match each value in list with key as a separate row
+                elif is_iterable(iterable):
+                    for item in iterable[row]:
+                        if is_iterable(item):
+                            writer.writerow([row] + list(item))
+                        else:
+                            writer.writerow([row, item])
+                else:
+                    writer.writerow([row, iterable[row]])
+            else:
+                writer.writerow([row])
+    return True
+
+
+def is_iterable(obj):
+    """Is iterable, but isn't a string"""
+    return not isinstance(obj, str) and isinstance(obj, Iterable)

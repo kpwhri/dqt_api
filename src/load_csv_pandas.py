@@ -9,8 +9,10 @@ A second entry is `add_data_dictionary` which optionally uploads a data dictiona
 
 """
 import csv
+import datetime
 import hashlib
 import string
+from pathlib import Path
 from typing import Generator
 
 import pandas as pd
@@ -20,14 +22,14 @@ from collections import defaultdict, namedtuple
 import sqlalchemy as sqla
 from pandas import to_numeric
 
-from dqt_api.rounding import round_top_and_bottom, int_only, int_mid
-from load_utils import clean_text_for_web
-from utils import xlsx_to_list
+from dqt_load.rounding import round_top_and_bottom, int_only, int_mid
+from dqt_load.excel import xlsx_to_list
+from dqt_load.utils import clean_text_for_web
 
 from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-from dqt_api.manage import add_tabs, add_comments
+from dqt_api.manage import add_tabs, add_comments, create_with_context
 
 COLUMN_TO_DOMAIN = {}
 COLUMN_TO_DESCRIPTION = {}
@@ -236,6 +238,8 @@ def parse_csv(fp, datamodel_vars,
             graph_data = None
             continue
         col_number += 1
+        if graph_data is None and col.lower() != 'years_enroll_bl':  # TODO: DEBUG
+            continue
         if items[col].excluded:
             logger.debug(f'Missing column #{col_number} {col}: {items[col].variable}')
             continue
@@ -524,12 +528,14 @@ def add_data_dictionary(input_files, file_name, label_column, name_column, categ
 
 
 def main():
-    from load_utils import parser  # data dictionary loading options
+    from dqt_load.utils import parser  # data dictionary loading options
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Run in debug mode.')
+    parser.add_argument('--testdb', action='store_true', default=False,
+                        help='Set to use a random test database in BASE_DIR.')
     parser.add_argument('--whooshee-dir', default=False, action='store_true',
                         help='Use whooshee directory in BASE_DIR.')
     parser.add_argument('--csv-file',
@@ -562,12 +568,18 @@ def main():
     args, unk = parser.parse_known_args()
 
     app.config.from_pyfile(args.config)
+    if args.testdb:
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + str(
+                Path(app.config['BASE_DIR']) / f'{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
+        )
     prepare_config(args.debug, args.whooshee_dir, skip_init=True)
     args = parser.parse_args()
 
     logger.add('load_csv_{time}.log', backtrace=True, diagnose=True)
 
     with app.app_context():
+        if args.testdb:
+            create_with_context()
         logger.debug('Unpacking categories.')
         unpack_domains(args.categorization_csv, args.minimum_priority)
         datamodel_vars = {

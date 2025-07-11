@@ -22,7 +22,7 @@ from loguru import logger
 from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-from load_utils import clean_text_for_web
+from dqt_load.utils import clean_text_for_web
 
 TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
     models.Variable, models.DataModel, models.Item,
@@ -118,6 +118,15 @@ def create():
         )
         alembic = Alembic()
         alembic.init_app(app)
+
+
+def create_with_context():
+    db.metadata.create_all(
+        db.engine,
+        tables=TABLES_EXC_USERDATA_ATTR
+    )
+    alembic = Alembic()
+    alembic.init_app(app)
 
 
 def create_user_data():

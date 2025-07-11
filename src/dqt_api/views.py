@@ -20,7 +20,7 @@ from loguru import logger
 from sqlalchemy import inspect, text
 
 from dqt_api import db, app, models
-from dqt_api.rounding import int_ceil
+from dqt_load.rounding import int_ceil
 
 
 class LoguruHandler(logging.Handler):
@@ -445,96 +445,113 @@ def _get_range_from_category(category_id, category_name, category_description):
         'description': category_description
     }
     for item in models.Item.query.filter_by(category=category_id):
-        variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
-        values = []
-        ranges = set()
-        for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.order,
-                                                                                                  models.Value.name)
-                     for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
-            for v in vals:
-                values.append(
-                    {'id': v.id,
-                     'name': v.name,
-                     'description': v.description,
-                     'order': v.order if v.order is not None else 100
-                     }
-                )
-                # determine if value could be part of range
-                if ranges is not None:
-                    val = None
-                    try:
-                        val = int(v.name)
-                    except ValueError:
-                        pass
-                    if val is None:
+        if item.is_loaded:  # new way: precalculated values
+            values = None
+            item_range = None
+            if item.values:
+                values = item.values.split('||')
+            elif item.is_float:
+                item_range = [item.float_range_start, item.float_range_stop, item.float_range_step]
+            else:
+                item_range = [item.int_range_start, item.int_range_stop, item.int_range_step]
+            res['items'].append({
+                'name': item.name,
+                'id': item.id,
+                'description': item.description,
+                'values': values,
+                'range': item_range,
+            })
+        else:  # old way -- may be needed if not calculated
+            variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
+            values = []
+            ranges = set()
+            for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.order,
+                                                                                                      models.Value.name)
+                         for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
+                for v in vals:
+                    values.append(
+                        {'id': v.id,
+                         'name': v.name,
+                         'description': v.description,
+                         'order': v.order if v.order is not None else 100
+                         }
+                    )
+                    # determine if value could be part of range
+                    if ranges is not None:
+                        val = None
                         try:
-                            val = rounding(float(v.name), 0.1, 1, 0)
+                            val = int(v.name)
                         except ValueError:
                             pass
-                    if val is None:
-                        ranges = None
+                        if val is None:
+                            try:
+                                val = rounding(float(v.name), 0.1, 1, 0)
+                            except ValueError:
+                                pass
+                        if val is None:
+                            ranges = None
+                        else:
+                            ranges.add(val)
+            values = sorted(values, key=lambda k: k['order'])
+            # determine step
+            if ranges:
+                prev = None
+                rsteps = []
+                for el in sorted(ranges):
+                    if prev:
+                        rsteps.append(el - prev)
+                    prev = el
+                max_range = max(ranges)
+                if int(max_range) != max_range:
+                    max_range += 0.1
+                if len(ranges) == 1 or len(rsteps) == 0:  # all items have same value
+                    continue
+                ranges = [min(ranges), max_range, min(rsteps)]
+                # increase step count if larger range
+                if ranges[2] == 1 and ranges[1] - ranges[0] > 20:
+                    ranges = [rounding(ranges[0], 5, 0, 0), rounding(ranges[1], 5, 0, 1), 5]
+                elif math.isclose(ranges[2], 0.1):
+                    if ranges[1] - ranges[0] > 10:
+                        ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 1]
                     else:
-                        ranges.add(val)
-        values = sorted(values, key=lambda k: k['order'])
-        # determine step
-        if ranges:
-            prev = None
-            rsteps = []
-            for el in sorted(ranges):
-                if prev:
-                    rsteps.append(el - prev)
-                prev = el
-            max_range = max(ranges)
-            if int(max_range) != max_range:
-                max_range += 0.1
-            if len(ranges) == 1 or len(rsteps) == 0:  # all items have same value
-                continue
-            ranges = [min(ranges), max_range, min(rsteps)]
-            # increase step count if larger range
-            if ranges[2] == 1 and ranges[1] - ranges[0] > 20:
-                ranges = [rounding(ranges[0], 5, 0, 0), rounding(ranges[1], 5, 0, 1), 5]
-            elif math.isclose(ranges[2], 0.1):
-                if ranges[1] - ranges[0] > 10:
-                    ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 1]
-                else:
-                    ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 0.1]
-
-            # sometimes the above has trouble
-            # TODO: write an appropriate rounding library
-            ideal_rate = app.config.get('IDEAL_BUCKET_COUNT', 20)
-            current_rounding = ranges[2] * 2
-            segments = (ranges[1] - ranges[0]) / ranges[2]
-            if segments > ideal_rate:
-                if '.' in str(ranges[2]):
-                    if current_rounding > 1:
-                        current_rounding = int(current_rounding)
-                        rounded = int(
-                            math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
+                        ranges = [int(rounding(ranges[0], 5, 1, 0)), int(rounding(ranges[1], 5, 1, 1)), 0.1]
+    
+                # sometimes the above has trouble
+                # TODO: write an appropriate rounding library
+                ideal_rate = app.config.get('IDEAL_BUCKET_COUNT', 20)
+                current_rounding = ranges[2] * 2
+                segments = (ranges[1] - ranges[0]) / ranges[2]
+                if segments > ideal_rate:
+                    if '.' in str(ranges[2]):
+                        if current_rounding > 1:
+                            current_rounding = int(current_rounding)
+                            rounded = int(
+                                math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
+                        else:
+                            zeroes = (str(ranges[2]).split('.')[1].count('0') + 1) * 10
+                            rounded = int(math.ceil((ranges[1] * zeroes - ranges[0] * zeroes) / ideal_rate / (
+                                    current_rounding * zeroes)) * current_rounding * zeroes) / zeroes
+    
                     else:
-                        zeroes = (str(ranges[2]).split('.')[1].count('0') + 1) * 10
-                        rounded = int(math.ceil((ranges[1] * zeroes - ranges[0] * zeroes) / ideal_rate / (
-                                current_rounding * zeroes)) * current_rounding * zeroes) / zeroes
-
-                else:
-                    rounded = int(math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
-
-                new_min = int(math.ceil((ranges[0]) / rounded)) * rounded
-                if new_min > ranges[0]:
-                    new_min = int(math.ceil((ranges[0] - rounded) / rounded)) * rounded
-                new_max = int(math.ceil((ranges[1]) / rounded)) * rounded
-                ranges = [new_min, new_max, rounded]
-
-            if ('year' in item.name.lower() and 'years' not in item.name.lower()) or 'age' in item.name.lower():
-                ranges = [ranges[0], ranges[1], int_ceil(ranges[2], base=5)]
-
-        # record data
-        res['items'].append({
-            'name': item.name,
-            'id': item.id,
-            'description': item.description,
-            'values': None if ranges else values,
-            'range': [transform_decimal(x) for x in ranges] if ranges else None
-        })
+                        rounded = int(math.ceil((ranges[1] - ranges[0]) / ideal_rate / current_rounding) * current_rounding)
+    
+                    new_min = int(math.ceil((ranges[0]) / rounded)) * rounded
+                    if new_min > ranges[0]:
+                        new_min = int(math.ceil((ranges[0] - rounded) / rounded)) * rounded
+                    new_max = int(math.ceil((ranges[1]) / rounded)) * rounded
+                    ranges = [new_min, new_max, rounded]
+    
+                if ('year' in item.name.lower() and 'years' not in item.name.lower()) or 'age' in item.name.lower():
+                    ranges = [ranges[0], ranges[1], int_ceil(ranges[2], base=5)]
+    
+            # record data
+            res['items'].append({
+                'name': item.name,
+                'id': item.id,
+                'description': item.description,
+                'values': None if ranges else values,
+                'range': [transform_decimal(x) for x in ranges] if ranges else None
+            })
     return res
 
 

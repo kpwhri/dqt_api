@@ -28,6 +28,15 @@ class Item(db.Model):
     description = db.Column(db.String(500))
     category = db.Column(db.Integer, db.ForeignKey('category.id'))
     is_numeric = db.Column(db.Boolean, default=False)  # True: associated are numeric, not categorical
+    is_loaded = db.Column(db.Boolean, default=False)  # True: values or range is being stored
+    is_float = db.Column(db.Boolean, default=False)  # True: numeric is a float value (not integer)
+    float_range_start = db.Column(db.Float)
+    float_range_end = db.Column(db.Float)
+    float_range_step = db.Column(db.Float)
+    int_range_start = db.Column(db.Integer)
+    int_range_end = db.Column(db.Integer)
+    int_range_step = db.Column(db.Integer)
+    values = db.Column(db.String(500))
 
 
 @whooshee.register_model('name', 'description')

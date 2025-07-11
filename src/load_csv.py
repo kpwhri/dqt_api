@@ -9,20 +9,17 @@ A second entry is `add_data_dictionary` which optionally uploads a data dictiona
 
 """
 import csv
-import hashlib
 from loguru import logger
 import re
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from datetime import datetime
 import sqlalchemy as sqla
-from pandas import to_numeric
 
 from load_csv_pandas import add_items, add_categories, line_not_empty, unpack_domains, \
     add_data_dictionary
-from dqt_api.rounding import int_round, int_only, int_floor
-from utils import xlsx_to_list
+from dqt_load.rounding import int_round, int_only, int_floor
 
-from dqt_api import db, app, cors, whooshee
+from dqt_api import db, app
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
 from dqt_api.manage import add_tabs, add_comments
@@ -194,7 +191,7 @@ def main():
     logger.warning(f'This script is not supported! Prefer `load_csv_pandas.csv`! '
                    f'Only use this script if data is too big for in memory.')
 
-    from load_utils import parser  # data dictionary loading options
+    from dqt_load.utils import parser  # data dictionary loading options
     parser.add_argument('--config', required=True,
                         help='File containing configuration information. '
                              'BASE_DIR, SECRET_KEY.')

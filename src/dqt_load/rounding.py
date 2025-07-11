@@ -30,7 +30,7 @@ def int_floor(x, base=5):
 
 def int_mid(x, base=5):
     """
-    For rounding to still respect flter ranges, a midpoint must be selected.
+    For rounding to still respect filter ranges, a midpoint must be selected.
     Suppose the slider bar allows 0,5,10,15,... and we have ages 14,10,8, and 5.
         If we `int_floor` only:
             14 -> 10
