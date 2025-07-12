@@ -1,10 +1,9 @@
+from dqt_load.argparser import blank_parser
 from dqt_load.excel import xlsx_to_csv
 
 
 def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+    parser = blank_parser()
 
     parser.add_argument('-i', '--input-file', dest='ifp', required=True,
                         help='Input xlsx file.')

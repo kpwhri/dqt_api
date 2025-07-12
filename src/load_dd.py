@@ -5,16 +5,12 @@ from dqt_api import app
 from dqt_api.__main__ import prepare_config
 from loguru import logger
 
-from dqt_load.argparser import parser
+from dqt_load.argparser import data_dictionary_parser
 from dqt_load.data_dictionary import add_data_dictionary
 
 
 def main():
-
-    parser.add_argument('--config', required=True,
-                        help='File containing configuration information. '
-                             'BASE_DIR, SECRET_KEY, SQLALCHEMY_DATABASE_URI, '
-                             'etc.')
+    parser = data_dictionary_parser()
     args = parser.parse_args()
 
     app.config.from_pyfile(args.config)

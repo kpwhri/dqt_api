@@ -9,7 +9,6 @@ from dqt_load.utils import clean_text_for_web, transform_decimal
 
 def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars: dict = None,
                item_range: tuple[int, int, int] = None):
-    # TODO include ranges as optional parameters for year/years/age
     """
     Add all elements from `col` to database.
 
