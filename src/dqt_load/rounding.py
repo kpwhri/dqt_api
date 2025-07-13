@@ -50,7 +50,7 @@ def int_mid(x, base=5):
     NOTE: This will not work if base=1, but that's probably expected since we're clearly int-rounding.
     """
     new_x = int_floor(x, base=base)  # get the floor
-    x = int(float(x))  # ensure same time (i.e., not a string)
+    x = float(x)  # ensure same type (i.e., not a string)
     if new_x != x:  # increment if not a range edge/border value which must remain on the edge
         new_x += base // 2  # get the integer midpoint to set value in the middle of the range
     return new_x

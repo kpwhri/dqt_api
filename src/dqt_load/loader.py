@@ -31,13 +31,17 @@ def parse_csv(fp, datamodel_vars,
     df = pd.read_csv(fp, dtype=object)
     graph_data = {i: dict() for i in range(df.shape[0])}
     df.columns = [c.lower() for c in df.columns]
+    datamodel_cols = list(datamodel_vars.keys())
     if target_columns:
-        df = df[target_columns]
-    columns = [col for col in df.columns if col not in datamodel_vars.keys()]
+        # avoid duplicating datamodel columns if one of these is requested
+        columns = [col for col in target_columns if col not in datamodel_cols]
+        df = df[datamodel_cols + columns]
+    else:
+        columns = [col for col in df.columns if col not in datamodel_cols]
     items = add_items(df.columns, datamodel_vars)  # ensure items exist
     sentinel = object()
     col_number = 0
-    for col in list(datamodel_vars.keys()) + [sentinel] + columns:
+    for col in datamodel_cols + [sentinel] + columns:
         if col == sentinel:
             save_data_model(graph_data)
             graph_data = None
