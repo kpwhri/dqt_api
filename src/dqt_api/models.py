@@ -69,9 +69,14 @@ class Value(db.Model):
             self.name_numeric = float(name)
         except ValueError:
             self.name_numeric = None
-        self.name = name
+        self.name = str(name)
         self.description = description
         self.order = order
+
+    @property
+    def name_typed(self):
+        """Name as appropriate type numeric (if exists) or string"""
+        return self.name if self.name_numeric is None else self.name_numeric
 
 
 class DataModel(db.Model):

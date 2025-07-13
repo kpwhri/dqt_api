@@ -16,7 +16,7 @@ from loguru import logger
 from dqt_api import app, db
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-from dqt_api.manage import add_tabs, add_comments, create_with_context
+from dqt_api.manage import add_tabs, add_comments, create_with_context, create_user_data_with_context
 
 from dqt_load.categories import unpack_domains
 from dqt_load.data_dictionary import add_data_dictionary
@@ -42,6 +42,7 @@ def main():
     with app.app_context():
         if args.testdb:
             create_with_context()
+            create_user_data_with_context()
         logger.debug('Unpacking categories.')
         datamodel_vars = {
             args.age_bl: 'age_bl',

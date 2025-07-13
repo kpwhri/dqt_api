@@ -17,31 +17,75 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
     If graph_data supplied, this variable is used in the data_model to control the two graphs and table.
     """
     if lookup_col is None or lookup_col not in cdf.columns:
-        lookup_col = col
+        lookup_col = None  # no lookup column
     unique_values = set()  # collect all unique values
     is_valid_range = True  # check to see if the values could be part of a range
-    for row in cdf[[col, lookup_col]].drop_duplicates().itertuples():
-        lookup_value = getattr(row, lookup_col)
+    filter_clause = [col, lookup_col]  if lookup_col is not None else [col]
+    for row in cdf[filter_clause].drop_duplicates().itertuples():
+        lookup_value = getattr(row, lookup_col, None) if lookup_col else None
         value = getattr(row, col)
+        original_value = value
         value_model = None
-        if lookup_value in VALUES_BY_ITEM[item]:
+
+        # by the appropriate value model
+        if lookup_value and lookup_value in VALUES_BY_ITEM[item]:  # predefined ids for categorical
             value_model = VALUES_BY_ITEM[item][lookup_value]
-        elif '+' in VALUES_BY_ITEM[item]:
+            is_valid_range = False  # categorical
+        elif value in VALUES_BY_ITEM[item]:  # predefined ids for categorical
+            value_model = VALUES_BY_ITEM[item][value]
+            is_valid_range = False  # categorical
+        elif '+' in VALUES_BY_ITEM[item]:  # other predefined ids for categorical
             for func, func_value in VALUES_BY_ITEM[item]['+']:
                 if func(value):
                     value_model = func_value
+            is_valid_range = False  # categorical
+        # not predefined -- possibly int or float value
         if value_model is None:  # add value if it doesn't exist
-            if lookup_value in VALUES[item]:
+            # convert value to int if possible, then:
+            # check if this could be a valid range: always collect values to give to Item
+            # once we collect all values, we'll try to determine ranges, etc.
+            val = None
+            try:
+                val = int(value)
+            except ValueError:
+                pass
+            if val is None:
+                try:
+                    val = rounding(float(value), 0.1, 1, 0)
+                except ValueError:
+                    pass
+            if val is None:
+                is_valid_range = False
+                val = value
+            value = val
+            # I think lookup value is only used for things like Gender, etc.
+            # if this is uncommented, it will fail to load teh appropriate variables in the `add variable` section below
+            # if same_col:  # if we don't have a separate lookup column
+            #     lookup_value = value
+
+            if value in VALUES[item]:
                 value_model = VALUES[item][value]
             else:
                 value_model = models.Value(name=clean_text_for_web(value))
                 logger.warning(f'Adding new value: {value} = {item}')
-                # VALUES[item][value] = val  # don't need to add since column-based
                 db.session.add(value_model)
+                db.session.commit()
+                VALUES[item][value] = value_model
+
+        # add to set of unique values for this item
+        #  - we may get multiple due to rounding (e.g., 0.53, 0.54 -> 0.5)
+        #  - rounded values should get same id
+        unique_values.add((value_model.name_typed, value_model.order, value_model.id))
 
         # add 'variable': i.e., individual-level data which connects an item and its value
         variables = []
-        for case in cdf[(cdf[lookup_col] == lookup_value) & (cdf[col] == value)].index:
+        if lookup_value is not None:
+            mask = cdf[lookup_col] == lookup_value
+        else:
+            mask = cdf[col] == original_value
+        for case in cdf[mask].index:
+            # NOTE: I'm not sure the `cdf[col] == original_value` is adding anything, but requires
+            #       tracking an additional value (`original_value`: what value was before possible conversion)
             if item in ITEMS:  # ensure this is in data dictionary
                 variables.append(models.Variable(
                     case=case, item=ITEMS[item].id, value=value_model.id
@@ -51,22 +95,6 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
         db.session.bulk_save_objects(variables)
         db.session.commit()
 
-        # check if this could be a valid range: always collect values to give to Item
-        # once we collect all values, we'll try to determine ranges, etc.
-        val = None
-        try:
-            val = int(value_model.name)
-        except ValueError:
-            pass
-        if val is None:
-            try:
-                val = rounding(float(value_model.name), 0.1, 1, 0)
-            except ValueError:
-                pass
-        if val is None:
-            is_valid_range = False
-            val = value_model.name
-        unique_values.add((val, value_model.order))
     # get the ranges for this item
     ranges = None  # specified ranges
     if item_range:
@@ -87,8 +115,8 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
             item_model.int_range_end = int(ranges[1])
             item_model.int_range_step = int(ranges[2])
         item_model.is_loaded = True
-    else:  # list of (name, order)
-        values = '||'.join(str(x[0]) for x in sorted(unique_values, key=lambda x: x[1]))  # sort by order
+    else:  # list of (name, order, value.id)
+        values = '||'.join(str(x[2]) for x in sorted(unique_values, key=lambda x: x[1]))  # sort by order
         if len(values) < 500:  # field limit of 500 characters
             item_model.values = values
             item_model.is_loaded = True

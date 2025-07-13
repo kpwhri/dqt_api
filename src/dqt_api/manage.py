@@ -129,13 +129,23 @@ def create_with_context():
     alembic.init_app(app)
 
 
-def create_user_data():
+def create_user_data_with_context():
     db.metadata.create_all(
         db.engine,
         tables=[models.UserData.__table__],
     )
     alembic = Alembic()
     alembic.init_app(app)
+
+
+def create_user_data():
+    with app.app_context():
+        db.metadata.create_all(
+            db.engine,
+            tables=[models.UserData.__table__],
+        )
+        alembic = Alembic()
+        alembic.init_app(app)
 
 
 def _random_name(mn=2, mx=8, add_possibles=''):

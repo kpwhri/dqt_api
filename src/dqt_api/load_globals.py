@@ -18,7 +18,7 @@ def initialize(app, db):
             app.config['PRECOMPUTED_FILTER'] = precomputed_filter
             app.config['NULL_FILTER'] = null_filter
 
-        app.logger.info('Loaded from file.')
+        app.logger.info(f'Loaded from file: {dump_file}')
         return
     except Exception as e:
         app.logger.info(f'Failed to load file cache, rebuilding: {e}')

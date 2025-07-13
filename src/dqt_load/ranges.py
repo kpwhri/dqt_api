@@ -45,7 +45,7 @@ def create_function_for_range(value: str):
 def get_ranges(unique_values):
     if not unique_values:
         return None
-    unique_values = [x[0] for x in unique_values]  # remove order element
+    unique_values = sorted({x[0] for x in unique_values})  # remove order and id elements
     prev = None
     rsteps = []
     for el in sorted(unique_values):

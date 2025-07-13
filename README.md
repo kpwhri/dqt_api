@@ -13,7 +13,7 @@ use cases.
 
 1. Create a base directory where logging and configuration information can be stored, and put this in `config.py` file.
 
-        BASE_DIR='path/to/local/storage'  # location for logs, etc.
+        BASE_DIR='path/to/local/storage'  # location for logs, etc.; recommended to not have spaces
         SECRET_KEY=b''  # generate this with os.urandom(24), any number is fine
         SQLALCHEMY_DATABASE_URI = 'sqlalchemy-connection-string'  # see # see: http://docs.sqlalchemy.org/en/latest/core/engines.html
         ORIGINS = ['*']  # origins to allow for cors
