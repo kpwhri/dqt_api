@@ -20,7 +20,6 @@ from loguru import logger
 from sqlalchemy import inspect, text
 
 from dqt_api import db, app, models
-from dqt_load.rounding import int_ceil
 
 
 class LoguruHandler(logging.Handler):
@@ -49,10 +48,11 @@ def jitter_and_mask_value_by_date(value, mask=0, label=''):
     incr = hash(
         datetime.date.today().strftime('%Y%m%d') + str(label) + str(app.config.get('JITTER', 'DEFAULT'))) % 6 - 2
     new_value = incr + value
-    if new_value > mask:
-        return new_value
-    else:
-        return 0
+    return masker(new_value, mask)
+
+
+def masker(value, mask=0):
+    return value if value > mask else 0
 
 
 @app.route('/', methods=['GET'])
@@ -280,8 +280,8 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         * function is called with jitter=False (when precomputing)
         * or, if config contains JITTER=None
         """
-        return x if jitter is False or not app.config.get('JITTER', True) else jitter_and_mask_value_by_date(x, mask,
-                                                                                                             label)
+        return (masker(x, mask) if jitter is False or not app.config.get('JITTER', True)
+                else jitter_and_mask_value_by_date(x, mask, label))
 
     # get set of cases
     cases, no_results_flag = parse_arg_list(arg_list or ())
