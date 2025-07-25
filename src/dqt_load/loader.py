@@ -58,26 +58,33 @@ def parse_csv(fp, datamodel_vars,
         cdf = cdf[~cdf[col].isin({'.', '', 'missing'})]
         # handle date: convert to year
         item_range = None
+        rounded = None  # reset value, not currently necessary
         if items[col].has_date:
             if col in skip_rounding:
                 cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_only))
+                rounded = 1
                 logger.warning(f'Skipping rounding for column with date: {col}')
             else:
                 cdf = pd.DataFrame(pd.to_datetime(cdf[col]).dt.year.apply(int_mid))
+                rounded = 5
                 # must round so that the filters find the lowest and highest at a round number
                 cdf = round_top_and_bottom(cdf, col)
                 item_range = [cdf[col].min(), cdf[col].max(), 5]  # default step is 5
-            add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars, item_range=item_range)
+            add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars,
+                       item_range=item_range, rounded=rounded)
         elif items[col].has_age_year or items[col].has_years:
             if col in skip_rounding:  # these are not actually identifying years/ages
                 cdf = pd.DataFrame(cdf[col].apply(int_only))
+                rounded = 1
                 logger.warning(f'Skipping rounding for column with age/year: {col}')
             else:
                 cdf = pd.DataFrame(cdf[col].apply(int_mid))
+                rounded = 5
                 # must round so that the filters find the lowest and highest at a round number
                 cdf = round_top_and_bottom(cdf, col)
                 item_range = [cdf[col].min(), cdf[col].max(), 5]  # default step is 5
-            add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars, item_range=item_range)
+            add_values(cdf, col, curr_item, graph_data=graph_data, datamodel_vars=datamodel_vars,
+                       item_range=item_range, rounded=rounded)
         elif curr_item in VALUES_BY_ITEM:  # categorisation/ordering already assigned
             values = cdf[col].unique()
             mapping = {}

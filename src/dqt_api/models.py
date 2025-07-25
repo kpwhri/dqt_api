@@ -37,6 +37,7 @@ class Item(db.Model):
     int_range_end = db.Column(db.Integer)
     int_range_step = db.Column(db.Integer)
     values = db.Column(db.String(500))
+    rounded = db.Column(db.Integer)  # rounded precision (e.g., 5)
 
 
 @whooshee.register_model('name', 'description')

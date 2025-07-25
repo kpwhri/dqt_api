@@ -41,7 +41,6 @@ def create_function_for_range(value: str):
         return lambda x: v1 <= to_numeric_func(clean_number(x)) < v2
 
 
-
 def get_ranges(unique_values):
     if not unique_values:
         return None

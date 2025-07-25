@@ -8,7 +8,7 @@ from dqt_load.utils import clean_text_for_web, transform_decimal
 
 
 def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars: dict = None,
-               item_range: tuple[int, int, int] = None):
+               item_range: tuple[int, int, int] = None, rounded: int = None):
     """
     Add all elements from `col` to database.
 
@@ -20,7 +20,7 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
         lookup_col = None  # no lookup column
     unique_values = set()  # collect all unique values
     is_valid_range = True  # check to see if the values could be part of a range
-    filter_clause = [col, lookup_col]  if lookup_col is not None else [col]
+    filter_clause = [col, lookup_col] if lookup_col is not None else [col]
     for row in cdf[filter_clause].drop_duplicates().itertuples():
         lookup_value = getattr(row, lookup_col, None) if lookup_col else None
         value = getattr(row, col)
@@ -115,6 +115,8 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
             item_model.int_range_end = int(ranges[1])
             item_model.int_range_step = int(ranges[2])
         item_model.is_loaded = True
+        if rounded:
+            item_model.rounded = rounded
     else:  # list of (name, order, value.id)
         values = '||'.join(str(x[2]) for x in sorted(unique_values, key=lambda x: x[1]))  # sort by order
         if len(values) < 500:  # field limit of 500 characters
