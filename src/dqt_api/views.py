@@ -310,15 +310,27 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                                     jitter_and_mask_function, mask_value)
 
     enroll_data = []
-    selected_subjects = 0
-    for label, cnt, *_ in df.groupby(['enrollment']).agg(['count']).itertuples():
-        cnt = jitter_and_mask_function(int(cnt), mask_value, label)
+    # select subject count based on baseline ages, and ensure same values are censored
+    selected_subjects = sum(sum(x['data']) for x in sex_data_bl['datasets'])
+    # guess what ages or censored and exclude those from the counts of enrollment
+    #  this will, at worst, create more elements in the age graphs than in enrollment
+    #  but that's probably better since they aren't enrollment graphs broken down by age
+    censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_bl['datasets']])]
+    # these now obey age buckets like sex data
+    for label, age_df in df[['enrollment', 'age_bl']].groupby(['enrollment']):
+        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
+        censored_hist_data = histogram(
+            age_df['age_bl'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+            jitter_function=lambda x: jitter_and_mask_function(x, mask=mask_value, label=label)
+        )
+        # remove already censored age buckets
+        censored_hist_data = [enroll_count if age_count > 0 else 0
+                              for enroll_count, age_count in zip(censored_hist_data, censored_age_indices)]
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
-            'header': f'- {label.capitalize()} {get_update_date_text()}',
-            'value': cnt
+            'header': f'- {label} {get_update_date_text()}',
+            'value': sum(censored_hist_data)
         })
-        selected_subjects += cnt
 
     if selected_subjects > mask_value and not no_results_flag:
         followup_years = round(df['followup_years'].mean(), 2)
@@ -364,15 +376,16 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
     sex_counts = []
     for label, age_df in df[['sex', age_var]].groupby(['sex']):
         label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
+        censored_hist_data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                                       jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
         sex_data['datasets'].append({
             'label': label,
-            'data': histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                              jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
+            'data': censored_hist_data,
         })
         sex_counts.append({
             'id': f'sex-{label}-count'.lower(),
             'header': f'- {label}',
-            'value': jitter_function(len(age_df), mask_value, label)
+            'value': sum(censored_hist_data),  # already jittered and masked
         })
     return sex_counts, sex_data
 
@@ -472,12 +485,14 @@ def _get_range_from_category(category_id, category_name, category_description):
                 'range': item_range,
             })
         else:  # old way -- may be needed if not calculated
-            variables = set([x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
+            variables = set(
+                [x[0] for x in db.session.query(models.Variable.value).filter(models.Variable.item == item.id)])
             values = []
             ranges = set()
-            for vals in (db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.order,
-                                                                                                      models.Value.name)
-                         for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
+            for vals in (
+                    db.session.query(models.Value).filter(models.Value.id.in_(var_set)).order_by(models.Value.order,
+                                                                                                 models.Value.name)
+                    for var_set in chunker(variables, 2000)):  # chunking for sql server max 2000 parameters
                 for v in vals:
                     values.append(
                         {'id': v.id,
