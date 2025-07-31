@@ -196,7 +196,10 @@ def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=
     res = [dist[b] for b in range(bins)]
     if group_extra_in_top_bin:
         res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    masked = [jitter_function(r) for r in res]
+    if jitter_function is not None:
+        masked = [jitter_function(r) for r in res]
+    else:
+        masked = [r for r in res]  # not masked
     return masked
 
 
@@ -317,13 +320,15 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     #  but that's probably better since they aren't enrollment graphs broken down by age
     censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_fu['datasets']])]
     # these now obey age buckets like sex data
+    # don't add jitter since these aren't reported at age level, just do this to censor any
+    #  categories which are alraedy censored in the sex data to avoid revealing info
     for label, censored_hist_data in censored_histogram_by_age(
-            'enrollment', 'age_fu', age_max, age_min, age_step,
-            df, jitter_and_mask_function, mask_value,
+            'enrollment', 'age_fu', age_max, age_min, age_step, df,
     ):
-        # remove already censored age buckets
+        # remove already censored age buckets: did not censor when doing histogram
         censored_hist_data = [enroll_count if age_count > 0 else 0
                               for enroll_count, age_count in zip(censored_hist_data, censored_age_indices)]
+        # TODO: do I need to jitter the values here?
         # prepare the table row for display
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
@@ -370,7 +375,8 @@ def get_google_chart(data):
     return new_data
 
 
-def censored_histogram_by_age(target_var, age_var, age_max, age_min, age_step, df, jitter_function, mask_value):
+def censored_histogram_by_age(target_var, age_var, age_max, age_min, age_step, df,
+                              jitter_function=None, mask_value=5):
     """Generates histogram data for specified variables with age binning and censoring.
 
     Args:
@@ -390,8 +396,12 @@ def censored_histogram_by_age(target_var, age_var, age_max, age_min, age_step, d
     """
     for label, age_df in df[[target_var, age_var]].groupby([target_var]):
         label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
+        if jitter_function is not None:
+            func = lambda x: jitter_function(x, mask=mask_value, label=label)
+        else:
+            func = None
         censored_hist_data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                                       jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
+                                       jitter_function=func)
         yield label, censored_hist_data
 
 def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_function, mask_value):
