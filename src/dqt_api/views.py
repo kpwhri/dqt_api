@@ -304,23 +304,23 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     # get age counts for each sex
     age_buckets = [f'{age}-{age + age_step - 1}' for age in range(age_min, age_max - age_step, age_step)]
     age_buckets.append(f'{age_max - age_step}+')
-    sex_counts_bl, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df,
+    _, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df,
                                                 jitter_and_mask_function, mask_value)
-    _, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df,
+    sex_counts_fu, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df,
                                     jitter_and_mask_function, mask_value)
 
     enroll_data = []
     # select subject count based on baseline ages, and ensure same values are censored
-    selected_subjects = sum(sum(x['data']) for x in sex_data_bl['datasets'])
+    selected_subjects = sum(sum(x['data']) for x in sex_data_fu['datasets'])
     # guess what ages or censored and exclude those from the counts of enrollment
     #  this will, at worst, create more elements in the age graphs than in enrollment
     #  but that's probably better since they aren't enrollment graphs broken down by age
-    censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_bl['datasets']])]
+    censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_fu['datasets']])]
     # these now obey age buckets like sex data
-    for label, age_df in df[['enrollment', 'age_bl']].groupby(['enrollment']):
+    for label, age_df in df[['enrollment', 'age_fu']].groupby(['enrollment']):
         label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
         censored_hist_data = histogram(
-            age_df['age_bl'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+            age_df['age_fu'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
             jitter_function=lambda x: jitter_and_mask_function(x, mask=mask_value, label=label)
         )
         # remove already censored age buckets
@@ -345,7 +345,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                          {'id': f'selected-count',
                           'header': 'Current Selection',
                           'value': min(selected_subjects, app.config['POPULATION_SIZE'])},
-                     ] + enroll_data + sex_counts_bl + [
+                     ] + enroll_data + sex_counts_fu + [
                          {'id': f'followup-years',
                           'header': f'{app.config.get("COHORT_TITLE", "")} Follow-up {get_update_date_text()} (mean years)'.strip(),
                           'value': followup_years}
