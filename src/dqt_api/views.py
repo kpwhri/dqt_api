@@ -317,15 +317,14 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     #  but that's probably better since they aren't enrollment graphs broken down by age
     censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_fu['datasets']])]
     # these now obey age buckets like sex data
-    for label, age_df in df[['enrollment', 'age_fu']].groupby(['enrollment']):
-        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
-        censored_hist_data = histogram(
-            age_df['age_fu'], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-            jitter_function=lambda x: jitter_and_mask_function(x, mask=mask_value, label=label)
-        )
+    for label, censored_hist_data in censored_histogram_by_age(
+            'enrollment', 'age_fu', age_max, age_min, age_step,
+            df, jitter_and_mask_function, mask_value,
+    ):
         # remove already censored age buckets
         censored_hist_data = [enroll_count if age_count > 0 else 0
                               for enroll_count, age_count in zip(censored_hist_data, censored_age_indices)]
+        # prepare the table row for display
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
             'header': f'- {label} {get_update_date_text()}',
@@ -338,6 +337,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         selected_subjects = 0
         followup_years = 0
 
+    # table rows ('cohort subjects' table)
     subject_counts = [
                          {'id': f'total-count',
                           'header': f'Total {app.config.get("COHORT_TITLE", "")} Population {get_update_date_text()}'.strip(),
@@ -351,7 +351,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                           'value': followup_years}
                      ]
 
-    # for google api
+    # for google api: these are the charts
     sex_data_bl_g = get_google_chart(sex_data_bl)
     sex_data_fu_g = get_google_chart(sex_data_fu)
     return subject_counts, sex_data_bl, sex_data_fu, sex_data_bl_g, sex_data_fu_g
@@ -370,14 +370,37 @@ def get_google_chart(data):
     return new_data
 
 
+def censored_histogram_by_age(target_var, age_var, age_max, age_min, age_step, df, jitter_function, mask_value):
+    """Generates histogram data for specified variables with age binning and censoring.
+
+    Args:
+        target_var (str): Variable name to generate histogram for (e.g. 'sex', 'enrollment')
+        age_var (str): Variable name containing age data to bin by
+        age_max (int): Maximum age to include
+        age_min (int): Minimum age to include  
+        age_step (int): Size of age bins
+        df (DataFrame): Pandas DataFrame containing the data
+        jitter_function (callable): Function to apply jittering to counts
+        mask_value (int): Threshold for masking small counts
+
+    Yields:
+        tuple: (label, censored_hist_data) where:
+            - label (str): Category label (capitalized)
+            - censored_hist_data (list): List of jittered/masked counts per age bin
+    """
+    for label, age_df in df[[target_var, age_var]].groupby([target_var]):
+        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
+        censored_hist_data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
+                                       jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
+        yield label, censored_hist_data
+
 def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_function, mask_value):
     sex_data = {'labels': age_buckets,  # show age range
                 'datasets': []}
     sex_counts = []
-    for label, age_df in df[['sex', age_var]].groupby(['sex']):
-        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
-        censored_hist_data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                                       jitter_function=lambda x: jitter_function(x, mask=mask_value, label=label))
+    for label, censored_hist_data in censored_histogram_by_age(
+            'sex', age_var, age_max, age_min, age_step, df, jitter_function, mask_value,
+    ):
         sex_data['datasets'].append({
             'label': label,
             'data': censored_hist_data,
