@@ -1,3 +1,17 @@
+"""
+Convert a data dictionary in XLSX form to CSV.
+
+Example usage:
+```
+    xlsx-to-csv
+    -i "DataDictionary.xlsx"
+    -o "variable_prioritization.csv"
+    --columns-to-keep "Variable description" "Variable name" "Variable label" "Categories"
+    --append-sheet-name "Category"
+    --ignore-empty-rows
+    --join-multiline "||"
+```
+"""
 from dqt_load.argparser import blank_parser
 from dqt_load.excel import xlsx_to_csv
 
