@@ -102,24 +102,24 @@ def add_values(cdf, col, item, lookup_col=None, graph_data=None, datamodel_vars:
     elif is_valid_range:
         ranges = get_ranges(unique_values)
     # set values or ranges for the item, to allow easy loading
-    item_model = ITEMS[item]
-    if is_valid_range and ranges:
-        if '.' in str(ranges[0]):  # is float
-            item_model.is_float = True
-            item_model.float_range_start = transform_decimal(ranges[0])
-            item_model.float_range_end = transform_decimal(ranges[1])
-            item_model.float_range_step = transform_decimal(ranges[2])
-        else:  # is int
-            item_model.is_float = False
-            item_model.int_range_start = int(ranges[0])  # otherwise, it's a numpy int
-            item_model.int_range_end = int(ranges[1])
-            item_model.int_range_step = int(ranges[2])
-        item_model.is_loaded = True
-        if rounded:
-            item_model.rounded = rounded
-    else:  # list of (name, order, value.id)
-        values = '||'.join(str(x[2]) for x in sorted(unique_values, key=lambda x: x[1]))  # sort by order
-        if len(values) < 500:  # field limit of 500 characters
-            item_model.values = values
+    if item_model := ITEMS.get(item, None):  # might be in data model only (not intended for filtering)
+        if is_valid_range and ranges:
+            if '.' in str(ranges[0]):  # is float
+                item_model.is_float = True
+                item_model.float_range_start = transform_decimal(ranges[0])
+                item_model.float_range_end = transform_decimal(ranges[1])
+                item_model.float_range_step = transform_decimal(ranges[2])
+            else:  # is int
+                item_model.is_float = False
+                item_model.int_range_start = int(ranges[0])  # otherwise, it's a numpy int
+                item_model.int_range_end = int(ranges[1])
+                item_model.int_range_step = int(ranges[2])
             item_model.is_loaded = True
+            if rounded:
+                item_model.rounded = rounded
+        else:  # list of (name, order, value.id)
+            values = '||'.join(str(x[2]) for x in sorted(unique_values, key=lambda x: x[1]))  # sort by order
+            if len(values) < 500:  # field limit of 500 characters
+                item_model.values = values
+                item_model.is_loaded = True
     db.session.commit()

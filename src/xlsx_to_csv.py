@@ -6,8 +6,8 @@ Example usage:
     xlsx-to-csv
     -i "DataDictionary.xlsx"
     -o "variable_prioritization.csv"
-    --columns-to-keep "Variable description" "Variable name" "Variable label" "Categories"
-    --append-sheet-name "Category"
+    --columns-to-keep "description" "name" "label" "values"
+    --append-sheet-name "domain"
     --ignore-empty-rows
     --join-multiline "||"
 ```
