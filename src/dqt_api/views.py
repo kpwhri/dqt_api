@@ -231,7 +231,7 @@ def api_filter_export():
 def get_update_date_text():
     update_date = app.config.get('UPDATE_DATE', None)
     if update_date:
-        return f'as of {update_date}'
+        return f'through {update_date}'
     return ''
 
 
