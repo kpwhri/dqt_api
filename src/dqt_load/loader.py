@@ -5,7 +5,7 @@ from loguru import logger
 import sqlalchemy as sa
 
 from dqt_api import models, db
-from dqt_load.rounding import round_top_and_bottom, int_only, int_mid
+from dqt_load.rounding import round_top_and_bottom, int_only, int_mid, round_top_and_bottom_age_range
 from dqt_load.categories import add_categories
 from dqt_load.data_model import save_data_model
 from dqt_load.globals import DOMAINS, VALUES_BY_ITEM
@@ -16,7 +16,8 @@ from dqt_load.values import add_values
 
 def parse_csv(fp, datamodel_vars,
               items_from_data_dictionary_only, target_columns=None,
-              skip_rounding: set[str] = None):
+              skip_rounding: set[str] = None, age_min=None, age_max=None, age_step=None,
+              enrollment_mapping=None, gender_mapping=None):
     """
     Load csv file into database, committing after each case.
     :param datamodel_vars:
@@ -43,7 +44,7 @@ def parse_csv(fp, datamodel_vars,
     col_number = 0
     for col in datamodel_cols + [sentinel] + columns:
         if col == sentinel:
-            save_data_model(graph_data)
+            save_data_model(graph_data, enrollment_mapping=enrollment_mapping, gender_mapping=gender_mapping)
             graph_data = None
             continue
         col_number += 1
@@ -77,6 +78,15 @@ def parse_csv(fp, datamodel_vars,
                 cdf = pd.DataFrame(cdf[col].apply(int_only))
                 rounded = 1
                 logger.warning(f'Skipping rounding for column with age/year: {col}')
+            elif items[col].has_age:
+                cdf = pd.DataFrame(cdf[col].apply(int_mid))
+                rounded = 5
+                cdf = round_top_and_bottom_age_range(cdf, col, age_min, age_max, age_step)
+                item_range = [
+                    age_min or cdf[col].min(),
+                    (age_max - age_step) or cdf[col].max(),
+                    age_step or 5,
+                ]
             else:
                 cdf = pd.DataFrame(cdf[col].apply(int_mid))
                 rounded = 5

@@ -65,6 +65,13 @@ def load_parser(config=True):
                              'to various locations (only "table" currently supported).')
     parser.add_argument('--skip-rounding', nargs='+', type=str.lower, default=set(),
                         help='Variables names (the column names, not display names) to skip rounding.')
+    # specify mappings for data model variables that aren't otherwise loaded
+    parser.add_argument('--enrollment-mapping', default=None,
+                        help='Specify mapping with 1==still_enrolled&2==current '
+                             '(underscores will be converted to spaces)')
+    parser.add_argument('--gender-mapping', default=None,
+                        help='Specify mapping with 1==male&2==female '
+                             '(underscores will be converted to spaces)')
 
     # debugging options
     parser.add_argument('--testdb', action='store_true', default=False,

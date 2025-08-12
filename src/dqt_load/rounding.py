@@ -8,6 +8,32 @@ def round_top_and_bottom(cdf, col):
     return cdf
 
 
+def round_top_and_bottom_age_range(cdf, col, age_min, age_max, age_step):
+    """
+
+    """
+
+    def round_floor(x):
+        if x <= age_min:
+            return age_min
+        elif x == cdf[col].min():
+            return int_floor(x)
+        else:
+            return x
+
+    def round_ceil(x):
+        if x >= (age_max - age_step):
+            return age_max - age_step
+        elif x == cdf[col].max():
+            return int_ceil(x)
+        else:
+            return x
+
+    cdf[col] = cdf[col].apply(round_floor)
+    cdf[col] = cdf[col].apply(round_ceil)
+    return cdf
+
+
 def int_round(x, base=5):
     """Round a number to the nearest 'base' """
     return int(base * round(float(x) / base))

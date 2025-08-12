@@ -64,7 +64,12 @@ def main():
         logger.debug('Parsing CSV file.')
         parse_csv(args.csv_file, datamodel_vars, args.items_from_data_dictionary_only,
                   target_columns,
-                  skip_rounding=set(args.skip_rounding) | {args.followup_years})
+                  age_min=app.config.get('AGE_MIN', None),
+                  age_max=app.config.get('AGE_MAX', None),
+                  age_step=app.config.get('AGE_STEP', None),
+                  skip_rounding=set(args.skip_rounding) | {args.followup_years},
+                  enrollment_mapping=args.enrollment_mapping,
+                  gender_mapping=args.gender_mapping)
 
         if args.dd_input_file:
             # optionally generate and store the data dictionary
