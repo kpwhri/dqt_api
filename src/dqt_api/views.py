@@ -163,6 +163,20 @@ def get_age_step():
         return _get_age_step(age_step, age_min, age_max, ages)
 
 
+@lru_cache(maxsize=32)
+def keep_enrollment(label):
+    """
+    Limit enrollment to only those labels present in `ENROLLMENT_RETAIN` config value.
+    """
+    if retain_labels := app.config.get('ENROLLMENT_RETAIN'):
+        for retain_label in retain_labels:
+            if label.lower() == retain_label.lower():
+                return True
+        return False
+    else:
+        return True
+
+
 def _get_age_step(age_step, age_min, age_max, ages):
     if not age_step:
         step = []
@@ -301,10 +315,11 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     for label, censored_hist_data, _ in censored_histogram_by_age_pl2(
             'enrollment', age_var, age_max, age_min, age_step, df,
     ):
+        if not keep_enrollment(label):
+            continue
         # TODO: do I need to jitter the values here?
         value = sum(censored_hist_data)
         # prepare the table row for display
-        print(label, value)
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
             'header': f'- {label} {get_update_date_text()}',
