@@ -201,6 +201,9 @@ COHORT_TITLE = 'My Data'
 UPDATE_DATE = 'January 2020'
 # optional, if you don't want in default location when running app.py; no effect from __main__.py
 WHOOSHEE_DIR = r'C:\data\config\dqt\whooshee.idx'
+# optional, if you want to limit the number of enrollment options, just showing one or two options
+# this can help reduce the risk of re-identifiability of small cells
+ENROLLMENT_RETAIN = ['still enrolled']
 ```
 
 ### Adding Tabs
