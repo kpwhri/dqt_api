@@ -14,12 +14,14 @@ import datetime
 import copy
 
 import pandas as pd
+import polars as pl
 import sqlalchemy
 from flask import request, jsonify, send_file
 from loguru import logger
 from sqlalchemy import inspect, text
 
 from dqt_api import db, app, models
+from dqt_api.pl_utils import load_cases_to_polars, censored_histogram_by_age_pl2
 
 
 class LoguruHandler(logging.Handler):
@@ -177,32 +179,6 @@ def _get_age_step(age_step, age_min, age_max, ages):
     return age_min, age_max, age_step
 
 
-def histogram(iterable, low, high, bins=None, step=None, group_extra_in_top_bin=False, mask=0,
-              jitter_function=lambda x: x):
-    """Count elements from the iterable into evenly spaced bins
-
-        >>> scores = [82, 85, 90, 91, 70, 87, 45]
-        >>> histogram(scores, 0, 100, 10)
-        [0, 0, 0, 0, 1, 0, 0, 1, 3, 2]
-
-    """
-    if not bins and not step:
-        raise ValueError('Need to specify either bins or step.')
-    if not step:
-        step = (high - low + 0.0) / bins
-    if not bins:
-        bins = int(math.ceil((high - low + 0.0) / step))
-    dist = Counter((float(x) - low) // step for x in iterable)
-    res = [dist[b] for b in range(bins)]
-    if group_extra_in_top_bin:
-        res[-1] += sum(dist[x] for x in range(bins, int(max(dist)) + 1))
-    if jitter_function is not None:
-        masked = [jitter_function(r) for r in res]
-    else:
-        masked = [r for r in res]  # not masked
-    return masked
-
-
 @app.route('/api/filter/export', methods=['GET'])
 def api_filter_export():
     filters = []
@@ -295,45 +271,44 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
         return app.config['PRECOMPUTED_FILTER']
 
     # get data for graphs
-    data = iterchain(
-        (models.DataModel.query.filter(
-            models.DataModel.case.in_(case_set)
-        ).all() for case_set in chunker(cases, 2000)),
-        depth=3
-    )
-    df = pd.DataFrame(query_to_dict(data))
+    df = load_cases_to_polars(cases)
     mask_value = app.config.get('MASK', 0)
     age_min, age_max, age_step = get_age_step()
     # get age counts for each sex
     age_buckets = [f'{age}-{age + age_step - 1}' for age in range(age_min, age_max - age_step, age_step)]
     age_buckets.append(f'{age_max - age_step}+')
-    _, sex_data_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df,
+    sex_counts_bl, sex_data_bl, excl_case_bl = get_sex_by_age('age_bl', age_buckets, age_max, age_min, age_step, df,
                                                 jitter_and_mask_function, mask_value)
-    sex_counts_fu, sex_data_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df,
+    sex_counts_fu, sex_data_fu, excl_case_fu = get_sex_by_age('age_fu', age_buckets, age_max, age_min, age_step, df,
                                     jitter_and_mask_function, mask_value)
 
     enroll_data = []
+    # censor same cases for enrollment based on whichever age has fewer excluded cases
     # select subject count based on baseline ages, and ensure same values are censored
-    selected_subjects = sum(sum(x['data']) for x in sex_data_fu['datasets'])
-    # guess what ages or censored and exclude those from the counts of enrollment
-    #  this will, at worst, create more elements in the age graphs than in enrollment
-    #  but that's probably better since they aren't enrollment graphs broken down by age
-    censored_age_indices = [min(x) for x in zip(*[x['data'] for x in sex_data_fu['datasets']])]
-    # these now obey age buckets like sex data
-    # don't add jitter since these aren't reported at age level, just do this to censor any
-    #  categories which are alraedy censored in the sex data to avoid revealing info
-    for label, censored_hist_data in censored_histogram_by_age(
-            'enrollment', 'age_fu', age_max, age_min, age_step, df,
+    selected_subjects_bl = sum(sum(x['data']) for x in sex_data_bl['datasets'])
+    selected_subjects_fu = sum(sum(x['data']) for x in sex_data_fu['datasets'])
+    if selected_subjects_bl > selected_subjects_fu:  # more baseline cases (i.e., more fu cases excluded)
+        age_var = 'age_bl'
+        df = df.filter(~df['case'].is_in(excl_case_bl))
+        selected_subjects = selected_subjects_bl
+        sex_counts = sex_counts_bl
+    else:   # more fu cases (i.e., more bl cases excluded)
+        age_var = 'age_fu'
+        df = df.filter(~df['case'].is_in(excl_case_fu))
+        selected_subjects = selected_subjects_fu
+        sex_counts = sex_counts_fu
+
+    for label, censored_hist_data, _ in censored_histogram_by_age_pl2(
+            'enrollment', age_var, age_max, age_min, age_step, df,
     ):
-        # remove already censored age buckets: did not censor when doing histogram
-        censored_hist_data = [enroll_count if age_count > 0 else 0
-                              for enroll_count, age_count in zip(censored_hist_data, censored_age_indices)]
         # TODO: do I need to jitter the values here?
+        value = sum(censored_hist_data)
         # prepare the table row for display
+        print(label, value)
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
             'header': f'- {label} {get_update_date_text()}',
-            'value': sum(censored_hist_data)
+            'value': value if value > mask_value else 0,
         })
 
     if selected_subjects > mask_value and not no_results_flag:
@@ -350,7 +325,7 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
                          {'id': f'selected-count',
                           'header': 'Current Selection',
                           'value': min(selected_subjects, app.config['POPULATION_SIZE'])},
-                     ] + enroll_data + sex_counts_fu + [
+                     ] + enroll_data + sex_counts + [
                          {'id': f'followup-years',
                           'header': f'{app.config.get("COHORT_TITLE", "")} Follow-up {get_update_date_text()} (mean years)'.strip(),
                           'value': followup_years}
@@ -375,42 +350,15 @@ def get_google_chart(data):
     return new_data
 
 
-def censored_histogram_by_age(target_var, age_var, age_max, age_min, age_step, df,
-                              jitter_function=None, mask_value=5):
-    """Generates histogram data for specified variables with age binning and censoring.
-
-    Args:
-        target_var (str): Variable name to generate histogram for (e.g. 'sex', 'enrollment')
-        age_var (str): Variable name containing age data to bin by
-        age_max (int): Maximum age to include
-        age_min (int): Minimum age to include  
-        age_step (int): Size of age bins
-        df (DataFrame): Pandas DataFrame containing the data
-        jitter_function (callable): Function to apply jittering to counts
-        mask_value (int): Threshold for masking small counts
-
-    Yields:
-        tuple: (label, censored_hist_data) where:
-            - label (str): Category label (capitalized)
-            - censored_hist_data (list): List of jittered/masked counts per age bin
-    """
-    for label, age_df in df[[target_var, age_var]].groupby([target_var]):
-        label = label[0].capitalize() if isinstance(label, tuple) else label.capitalize()
-        if jitter_function is not None:
-            func = lambda x: jitter_function(x, mask=mask_value, label=label)
-        else:
-            func = None
-        censored_hist_data = histogram(age_df[age_var], age_min, age_max, step=age_step, group_extra_in_top_bin=True,
-                                       jitter_function=func)
-        yield label, censored_hist_data
-
 def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_function, mask_value):
     sex_data = {'labels': age_buckets,  # show age range
                 'datasets': []}
     sex_counts = []
-    for label, censored_hist_data in censored_histogram_by_age(
+    excluded_cases = []
+    for label, censored_hist_data, new_excluded_cases in censored_histogram_by_age_pl2(
             'sex', age_var, age_max, age_min, age_step, df, jitter_function, mask_value,
     ):
+        excluded_cases += new_excluded_cases
         sex_data['datasets'].append({
             'label': label,
             'data': censored_hist_data,
@@ -420,7 +368,7 @@ def get_sex_by_age(age_var, age_buckets, age_max, age_min, age_step, df, jitter_
             'header': f'- {label}',
             'value': sum(censored_hist_data),  # already jittered and masked
         })
-    return sex_counts, sex_data
+    return sex_counts, sex_data, excluded_cases
 
 
 def query_to_dict(rset):
