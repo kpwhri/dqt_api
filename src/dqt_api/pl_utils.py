@@ -220,10 +220,10 @@ def censored_histogram_by_age_pl2(target_var, age_var, age_max, age_min, age_ste
 
         # Apply jitter/mask function to counts to obtain censored histogram
         if jitter_function is not None:
-            func = lambda x: jitter_function(x, mask=mask_value, label=label_str)
-            masked_counts = [func(v) for v in raw_counts]
+            func = lambda x, i: jitter_function(x, mask=mask_value, label=f'{label_str}{i}')
+            masked_counts = [func(v, i) for i, v in enumerate(raw_counts)]
         else:
-            masked_counts = raw_counts[:]  # no masking/jitter
+            masked_counts = raw_counts[:]  # no masking/jitter at age-group level (e.g., or enrollment)
 
         # Identify bins that became zero due to masking (exclude genuinely empty bins)
         masked_bin_indices = [i for i, (r, m) in enumerate(zip(raw_counts, masked_counts)) if r > 0 and m == 0]

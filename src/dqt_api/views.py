@@ -1,10 +1,10 @@
+import hashlib
 import os
 import random
 import string
-from collections import defaultdict, Counter
+from collections import defaultdict
 import logging
 
-import math
 from functools import lru_cache
 from io import BytesIO
 from itertools import zip_longest
@@ -13,8 +13,6 @@ import datetime
 
 import copy
 
-import pandas as pd
-import polars as pl
 import sqlalchemy
 from flask import request, jsonify, send_file
 from loguru import logger
@@ -47,8 +45,13 @@ def remove_values(f):
 
 def jitter_and_mask_value_by_date(value, mask=0, label=''):
     """Add/subtract small increment from value. If resulting `new_value` <= mask, set the result to 0."""
-    incr = hash(
-        datetime.date.today().strftime('%Y%m%d') + str(label) + str(app.config.get('JITTER', 'DEFAULT'))) % 6 - 2
+    salt = app.config.get('JITTER', 'DEFAULT')
+    noise_min = app.config.get('JITTER_MIN', -2)
+    noise_max = app.config.get('JITTER_MAX', 2)
+    year, week, _ = datetime.date.today().isocalendar()
+    seed_str = f'{year}-W{week}_{label}_{salt}'
+    incr = hash(seed_str) % (noise_max - noise_min + 1) + noise_min
+    # incr = (int(hashlib.sha256(seed_str.encode()).hexdigest(), 16) % (noise_max - noise_min + 1)) + noise_min
     new_value = incr + value
     return masker(new_value, mask)
 
@@ -317,13 +320,13 @@ def api_filter_chart_helper(jitter=True, arg_list=None):
     ):
         if not keep_enrollment(label):
             continue
-        # TODO: do I need to jitter the values here?
         value = sum(censored_hist_data)
+        value = jitter_and_mask_function(value, mask_value, label)
         # prepare the table row for display
         enroll_data.append({
             'id': f'enroll-{label}-count'.lower(),
             'header': f'- {label} {get_update_date_text()}',
-            'value': value if value > mask_value else 0,
+            'value': value,
         })
 
     if selected_subjects > mask_value and not no_results_flag:
