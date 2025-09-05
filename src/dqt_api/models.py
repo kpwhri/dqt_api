@@ -25,6 +25,7 @@ class Item(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
+    varname = db.Column(db.String(100))
     description = db.Column(db.String(500))
     category = db.Column(db.Integer, db.ForeignKey('category.id'))
     is_numeric = db.Column(db.Boolean, default=False)  # True: associated are numeric, not categorical

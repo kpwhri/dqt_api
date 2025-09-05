@@ -200,7 +200,7 @@ def _get_age_step(age_step, age_min, age_max, ages):
 def api_filter_export():
     filters = []
     for key, [val, *_] in request.args.lists():
-        item = db.session.query(models.Item.name).filter_by(id=key).first()[0]
+        item = db.session.query(models.Item.varname).filter_by(id=key).first()[0]
         if '~' in val:
             low_val, high_val = val.split('~')
             if high_val and low_val:

@@ -60,6 +60,7 @@ def unpack_domains(categorization_csv, target_columns=None, min_priority=0):
                 if row.values:  # these "categories" are really ITEMS
                     if re.match(r'\w{1,3}\s*\=', row.values.strip()):
                         i = models.Item(name=row.label,
+                                        varname=row.name.lower(),
                                         description=row.description,
                                         category=domain_instance.id)
                         for cat in row.values.split('||'):
@@ -108,6 +109,7 @@ def unpack_domains(categorization_csv, target_columns=None, min_priority=0):
                             db.session.commit()
                     else:
                         i = models.Item(name=clean_text_for_web(row.label),
+                                        varname=row.name.lower(),
                                         description=clean_text_for_web(row.description),
                                         category=domain_instance.id,
                                         is_numeric=True)
