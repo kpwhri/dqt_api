@@ -14,3 +14,5 @@ pyodbc
 openpyxl
 loguru
 pycryptodome
+whoosh
+polars
