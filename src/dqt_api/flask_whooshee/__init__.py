@@ -2,7 +2,6 @@ import abc
 import errno
 import os
 import re
-import sys
 import warnings
 from inspect import isclass
 import sqlalchemy
@@ -20,14 +19,11 @@ from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm import Query as SQLAQuery
 from sqlalchemy.types import Integer as SQLInteger, BigInteger as SQLBigInteger
 
-
 db = SQLAlchemy()
-
 
 INSERT_KWD = 'insert'
 UPDATE_KWD = 'update'
 DELETE_KWD = 'delete'
-
 
 __version__ = '0.7.0'
 
@@ -35,8 +31,10 @@ __version__ = '0.7.0'
 def _get_app(obj):
     return (getattr(obj, 'app', None) or current_app)
 
+
 def _get_config(obj):
     return _get_app(obj).extensions['whooshee']
+
 
 def _assure_dirs_exists(path):
     try:
@@ -44,6 +42,7 @@ def _assure_dirs_exists(path):
     except OSError as err:
         if err.errno != errno.EEXIST:
             raise
+
 
 class WhoosheeQuery(db.Query):
     """An override for SQLAlchemy query used to do fulltext search."""
@@ -107,19 +106,20 @@ class WhoosheeQuery(db.Query):
 
         search_query = self.filter(attr.in_(res))
 
-        if order_by_relevance < 0: # we want all returned rows ordered
+        if order_by_relevance < 0:  # we want all returned rows ordered
             search_query = search_query.order_by(sqlalchemy.sql.expression.case(
                 *[(attr == uniq_val, index) for index, uniq_val in enumerate(res)],
             ))
-        elif order_by_relevance > 0: # we want only number of specified rows ordered
+        elif order_by_relevance > 0:  # we want only number of specified rows ordered
             search_query = search_query.order_by(sqlalchemy.sql.expression.case(
                 *[(attr == uniq_val, index) for index, uniq_val in enumerate(res) if index < order_by_relevance],
                 else_=order_by_relevance
             ))
-        else: # no ordering
+        else:  # no ordering
             pass
 
         return search_query
+
 
 class AbstractWhoosheer(object):
     """A superclass for all whoosheers.
@@ -180,7 +180,9 @@ class AbstractWhoosheer(object):
         # TODO: some sanitization
         return s
 
+
 AbstractWhoosheerMeta = abc.ABCMeta('AbstractWhoosheer', (AbstractWhoosheer,), {})
+
 
 class Whooshee(object):
     """A top level class that allows to register whoosheers and adds an
@@ -216,10 +218,12 @@ class Whooshee(object):
         self.whoosheers = []
         if app:
             self.init_app(app)
+
             # if we have app, create subclass of WhoosheeQuery that will carry it and
             # always use it for models associated to this Whooshee
             class WhoosheeQueryWithApp(WhoosheeQuery):
                 app = self.app
+
             self.query = WhoosheeQueryWithApp
         else:
             self.query = WhoosheeQuery
@@ -247,11 +251,11 @@ class Whooshee(object):
         config['enable_indexing'] = app.config.get('WHOOSHEE_ENABLE_INDEXING', True)
 
         if app.config.get('WHOOSHE_MIN_STRING_LEN', None) is not None:
-            warnings.warn(WhoosheeDeprecationWarning("The config key WHOOSHE_MIN_STRING_LEN has been renamed to WHOOSHEE_MIN_STRING_LEN. The mispelled config key is deprecated and will be removed in upcoming releases. Change it to WHOOSHEE_MIN_STRING_LEN to suppress this warning"))
+            warnings.warn(WhoosheeDeprecationWarning(
+                "The config key WHOOSHE_MIN_STRING_LEN has been renamed to WHOOSHEE_MIN_STRING_LEN. The mispelled config key is deprecated and will be removed in upcoming releases. Change it to WHOOSHEE_MIN_STRING_LEN to suppress this warning"))
             config['search_string_min_len'] = app.config.get('WHOOSHE_MIN_STRING_LEN')
 
         _assure_dirs_exists(config['index_path_root'])
-
 
     def register_whoosheer(self, wh):
         """This will register the given whoosher on `whoosheers`, create the
@@ -293,6 +297,7 @@ class Whooshee(object):
         a simple Whoosheer for the model and calls :func:`register_whoosheer`
         on it.
         """
+
         # construct subclass of AbstractWhoosheer for a model
         class ModelWhoosheer(AbstractWhoosheerMeta):
             @classmethod
@@ -300,7 +305,6 @@ class Whooshee(object):
                 attrs[primary] = getattr(model, primary)
                 if not primary_is_numeric:
                     attrs[primary] = str(attrs[primary])
-
 
         mwh = ModelWhoosheer
 
@@ -438,7 +442,7 @@ class Whooshee(object):
                     method = getattr(wh, method_name, None)
                     if method:
                         if not writer:
-                            writer = type(self).get_or_create_index(_get_app(self), wh).\
+                            writer = type(self).get_or_create_index(_get_app(self), wh). \
                                 writer(timeout=_get_config(self)['writer_timeout'])
                         with writer:
                             method(writer, change[0])
