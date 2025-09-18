@@ -1,21 +1,5 @@
-
-TEXT_SUBS = {
-    '”': '"',
-    '“': '"',
-    "’": "'",
-    "‘": "'",
-    '||||': '\n',
-    '||': '\n',
-    '\u2265': '>=',
-    '\u2264': '<=',
-}
-
-def clean_text_for_web(text):
-    if isinstance(text, str):
-        for src, repl in TEXT_SUBS.items():
-            text = text.replace(src, repl)
-    return text
-
+# noinspection PyUnusedImports
+from dqt_api.utils import clean_text_for_web  # migrated to dqt_api to avoid any dependencies on dqt_load
 
 
 def clean_number(value):

@@ -22,7 +22,7 @@ from loguru import logger
 from dqt_api import db, app, whooshee
 from dqt_api import models
 from dqt_api.__main__ import prepare_config
-from dqt_load.utils import clean_text_for_web
+from dqt_api.utils import clean_text_for_web
 
 TABLES_EXC_USERDATA = [  # user data table should not be dropped/re-created
     models.Variable, models.DataModel, models.Item,
