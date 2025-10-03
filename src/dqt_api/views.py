@@ -1,4 +1,3 @@
-import hashlib
 import os
 import random
 import string
@@ -398,21 +397,6 @@ def query_to_dict(rset):
         for key, x in instance.attrs.items():
             result[key].append(x.value)
     return result
-
-
-def iterchain(*args, depth=2):
-    for element in args:
-        for elements in element:
-            for el in elements:
-                yield el
-
-
-def iterchain2(*args, depth=2):
-    for element in args:
-        if depth > 1:
-            iterchain(element, depth=depth - 1)
-        else:
-            yield element
 
 
 @app.route('/api/category/add/<int:category_id>', methods=['GET'])

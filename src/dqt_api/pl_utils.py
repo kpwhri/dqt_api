@@ -13,7 +13,6 @@ def chunker(iterable, chunk_size, fillvalue=None):
 
 def load_cases_to_polars(cases):
     """Load DataModel rows for the given case ids into a Polars DataFrame efficiently."""
-    import polars as pl
     # Cast to a concrete list of ints (cases may be a set)
     case_ids = list(cases or [])
     if not case_ids:
@@ -202,14 +201,14 @@ def censored_histogram_by_age_pl2(target_var, age_var, age_max, age_min, age_ste
                 .then(pl.lit(n_bins - 1))
                 .otherwise(((pl.col(age_var) - age_min) / age_step).floor().cast(pl.Int64))
             )
-            .with_columns(pl.col("bin").clip(lower_bound=0, upper_bound=n_bins - 1))
+            .with_columns(pl.col('bin').clip(lower_bound=0, upper_bound=n_bins - 1))
         )
 
         # Raw counts per bin
         counts_df = (
-            group_binned.group_by("bin")
+            group_binned.group_by('bin')
             .len()
-            .rename({"len": "count"})
+            .rename({'len': 'count'})
         )
 
         # Materialize into a dense vector of length n_bins
@@ -232,8 +231,8 @@ def censored_histogram_by_age_pl2(target_var, age_var, age_max, age_min, age_ste
         if masked_bin_indices:
             excluded_cases = (
                 group_binned
-                .filter(pl.col("bin").is_in(masked_bin_indices))
-                .get_column("case")
+                .filter(pl.col('bin').is_in(masked_bin_indices))
+                .get_column('case')
                 .to_list()
             )
         else:
