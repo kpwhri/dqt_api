@@ -61,7 +61,7 @@ def masker(value, mask=0):
 
 @app.route('/', methods=['GET'])
 def index():
-    return 'Home page.'
+    return 'Congrats! The Data Query Tool API is running!'
 
 
 @app.route('/api/search', methods=['GET'])
